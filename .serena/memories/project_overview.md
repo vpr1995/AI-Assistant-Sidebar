@@ -17,31 +17,37 @@ The UI is inspired by shadcn.io's AI chatbot interface with streaming responses,
 ### Core Framework
 - **React 19** - Modern functional components with hooks
 - **Vite 7** - Fast build tool with HMR
-- **JavaScript/JSX** - No TypeScript (currently)
+- **TypeScript** - Strict type checking enabled (converted from JavaScript)
 
-### UI & Styling (Planned)
-- **Tailwind CSS** - Utility-first CSS framework
-- **shadcn/ui** - React component library for AI chat interface
-- **shadcn/ui AI Chatbot Components** - Pre-built Conversation, Message, PromptInput, Reasoning, Sources, Loader
+### UI & Styling
+- **Tailwind CSS** - Utility-first CSS framework (installed)
+- **shadcn/ui** - React component library for AI chat interface (planned)
+- **shadcn/ui AI Chatbot Components** - Pre-built Conversation, Message, PromptInput, Reasoning, Sources, Loader (planned)
 
 ### AI Runtime (Planned)
-- **Vercel AI SDK (`ai`)** - Standardized AI streaming APIs
-- **@built-in-ai/transformers-js** - Transformers.js wrapper with better APIs
+- **Vercel AI SDK (`ai`)** - Standardized AI streaming APIs (installed)
+- **@built-in-ai/transformers-js** - Transformers.js wrapper with better APIs (installed)
+- **@built-in-ai/core** - Core AI functionality (installed)
 - **WebGPU** - Hardware acceleration (with WASM fallback)
 - **Web Workers** - Off-main-thread model inference
 
 ### Chrome Extension
-- **Manifest V3** - Chrome extension manifest
+- **Manifest V3** - Chrome extension manifest in `public/`
 - **Side Panel API** - Sidebar extension (400-500px width)
-- **Chrome Storage API** - Message persistence and settings
+- **Background Service Worker** - `src/background.ts` compiled to `dist/background.js`
 
 ## Current State
-The project is currently a basic React + Vite template with:
-- Simple counter app in `App.jsx`
-- HMR development server working
-- ESLint configuration with React hooks and refresh plugins
-- No Chrome extension manifest yet (to be added)
-- No AI capabilities yet (to be implemented)
+The project has been converted to full TypeScript:
+- ✅ TypeScript compiler and types installed
+- ✅ All React components in `.tsx` format (`App.tsx`, `main.tsx`)
+- ✅ Vite config in TypeScript (`vite.config.ts`)
+- ✅ Strict type checking enabled
+- ✅ ESLint configured for TypeScript
+- ✅ Chrome extension manifest present in `public/`
+- ✅ Background service worker (`background.ts`)
+- ✅ Tailwind CSS installed and configured
+- ⏳ AI capabilities to be implemented
+- ⏳ shadcn/ui components to be added
 
 ## Project Goals
 Build a fully functional local AI assistant that:
