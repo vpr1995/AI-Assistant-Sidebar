@@ -1,48 +1,114 @@
-# Chrome Extension React App
+# Chrome Extension Project Overview
 
-This is a React application built with Vite and TypeScript, designed as a starting point for a Chrome extension. It uses modern React 19 with functional components and hooks.
+## Purpose
+This project is building a **privacy-first, local AI assistant as a Chrome sidebar extension**. The extension will run AI models directly in the browser using WebGPU/WebAssembly, providing users with:
+
+- Text generation (LLM chat interface with streaming)
+- Image generation (multimodal AI)
+- Speech-to-text (Whisper transcription)
+- Text-to-speech capabilities
+- Complete data privacy (100% local processing, zero external API calls)
+- Offline functionality after model caching
+
+The UI is inspired by shadcn.io's AI chatbot interface with streaming responses, markdown rendering, and copy functionality.
+
+## Tech Stack
+
+### Core Framework
+- **React 19** - Modern functional components with hooks
+- **Vite 7** - Fast build tool with HMR
+- **TypeScript** - Strict type checking enabled
+
+### UI & Styling
+- **Tailwind CSS** - Utility-first CSS framework
+- **shadcn/ui** - React component library
+- **shadcn/ui AI Chatbot Components** - Chat, Message, MessageInput components
+
+### AI Runtime
+- **Vercel AI SDK (`ai`)** - Standardized AI streaming APIs
+- **@ai-sdk/react** - useChat hook for client-side AI
+- **@built-in-ai/core** - Chrome's built-in Gemini Nano/Phi Mini (PRIMARY)
+- **@built-in-ai/transformers-js** - Transformers.js wrapper with model selection (FALLBACK)
+- **WebGPU** - Hardware acceleration (with WASM fallback)
+- **Web Workers** - Off-main-thread model inference (planned)
+
+### Chrome Extension
+- **Manifest V3** - In `public/manifest.json`
+- **Side Panel API** - For the sidebar
+- **Background Service Worker** - `src/background.ts`
 
 ## Architecture
 
-- **Entry Point**: `src/main.tsx` renders the app into `#root` in `index.html`
-- **Main Component**: `src/App.tsx` - single-page app with local state
-- **Build Tool**: Vite (v7) for fast development and HMR
-- **Language**: TypeScript with strict type checking
-- **Styling**: CSS modules in `src/App.css` and `src/index.css`, with Tailwind CSS support
-- **Assets**: Public assets in `public/` (e.g., `/vite.svg`), component assets in `src/assets/`
+### Dual-Provider AI System
+This extension uses a smart dual-provider architecture:
+1.  **Primary Provider: Chrome Built-in AI** (`@built-in-ai/core`)
+    *   Uses Chrome's native Gemini Nano or Edge's Phi Mini.
+    *   Fast, efficient, and managed by the browser.
+    *   Requires enabling a Chrome flag: `chrome://flags/#prompt-api-for-gemini-nano`.
+2.  **Fallback Provider: Transformers.js** (`@built-in-ai/transformers-js`)
+    *   Used when Built-in AI is not available.
+    *   Allows manual model selection and runs on any modern browser with WebGPU/WASM support.
 
-Data flows are simple: component-level state with `useState`, no global state management yet.
+### Data Flow
+The data flow is entirely client-side:
+`User Input → ClientSideChatTransport → Built-in AI/Transformers.js Model → Stream → UI Update`
+
+A custom `ClientSideChatTransport` is implemented to integrate with the `@ai-sdk/react` `useChat` hook and handle the logic for both AI providers.
+
+### State Management
+- **Local State**: `useState` for component-level state.
+- **Chrome Storage**: For persisting chat history and user settings (planned).
+- **No Global State**: No Redux/Zustand is used.
 
 ## Key Workflows
 
-- **Development**: `npm run dev` starts Vite dev server on http://localhost:5173 with HMR
-- **Build**: `npm run build` outputs to `dist/` directory
-- **Linting**: `npm run lint` checks `**/*.{js,jsx,ts,tsx}` with ESLint (ignores `dist/`)
-- **Preview**: `npm run preview` serves the built app locally
+- **Development**: `npm run dev` starts the Vite dev server.
+- **Build**: `npm run build` creates the production-ready extension in the `dist/` directory.
+- **Linting**: `npm run lint` checks for code quality issues.
+- **Preview**: `npm run preview` serves the built app locally.
 
-For Chrome extension integration, `manifest.json` is in `public/` and `vite.config.ts` builds the background service worker.
+### Chrome Extension Testing
+1.  Run `npm run build`.
+2.  Go to `chrome://extensions/`, enable "Developer mode".
+3.  Click "Load unpacked" and select the `dist/` folder.
+4.  To see changes, rebuild and click the reload icon on the extension card.
 
 ## Conventions
 
-- **Modules**: ES modules (`"type": "module"` in `package.json`)
-- **Components**: Functional with hooks, export default, written in TypeScript
-- **Types**: Explicit types for state, props, and function parameters
-- **Imports**: Relative paths for local files (e.g., `import App from './App'`), absolute for public assets (e.g., `import viteLogo from '/vite.svg'`)
-- **Linting**: Flat config ESLint with React hooks, refresh plugins, and TypeScript support; `@typescript-eslint/no-unused-vars` ignores uppercase vars
-- **File Structure**: `src/` for source (`.tsx`, `.ts`), `public/` for static assets
+### Code Style
+- **Components**: Functional components with hooks. Use function declarations, not arrow functions for top-level components.
+- **Types**: Always use explicit types for props, state, and function parameters. Use interfaces for object shapes.
+- **Imports**: Group imports by category (React, external, internal components, hooks, utils, styles).
+- **Styling**: Use Tailwind CSS with the `cn()` utility for conditional classes.
+- **File Naming**: Use `kebab-case.tsx` for components and `use-kebab-case.ts` for hooks.
+
+### Commit Messages
+Use conventional commit format (e.g., `feat(chat): add streaming support`).
+
+## File Structure
+
+```
+src/
+├── App.tsx              # Main sidebar container component
+├── main.tsx             # React entry point
+├── background.ts        # Background service worker
+├── components/
+│   └── ui/              # shadcn/ui components
+│       ├── chat.tsx
+│       ├── chat-message.tsx
+│       └── message-input.tsx
+├── hooks/               # Custom React hooks
+│   ├── use-auto-scroll.ts
+│   └── use-autosize-textarea.ts
+└── lib/                 # Utility libraries
+    ├── client-side-chat-transport.ts # Custom transport for useChat
+    └── utils.ts         # Shared utilities like cn()
+```
 
 ## TypeScript Configuration
 
-- **Main config**: `tsconfig.json` references `tsconfig.app.json` and `tsconfig.node.json`
-- **App config**: `tsconfig.app.json` for React app with `jsx: "react-jsx"`, strict mode enabled
-- **Node config**: `tsconfig.node.json` for Vite config and Node.js scripts
-- **Strict mode**: Enabled with `noUnusedLocals`, `noUnusedParameters`, `noFallthroughCasesInSwitch`, `noUncheckedIndexedAccess`
+- **`tsconfig.app.json`**: Config for the React app with `jsx: "react-jsx"` and strict mode enabled.
+- **`tsconfig.node.json`**: Config for Node.js scripts like `vite.config.ts`.
 
-## Examples
+Always use TypeScript for new files and adhere to the strict mode rules.
 
-- State management: `const [count, setCount] = useState<number>(0)` in `App.tsx`
-- Asset import: `import reactLogo from './assets/react.svg'` for component-scoped assets
-- HMR testing: Edit `src/App.tsx` and save to see changes instantly
-- Type declarations: `src/vite-env.d.ts` includes Vite client types
-
-Always use TypeScript for new React components and modules. Use proper type annotations for props, state, and event handlers.
