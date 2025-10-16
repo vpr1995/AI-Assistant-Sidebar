@@ -15,6 +15,12 @@ export default defineConfig({
         // include the background service worker so Vite bundles it and outputs to dist/background.js
         background: path.resolve(__dirname, 'src/background.ts'),
       },
+      output: {
+        entryFileNames: (chunkInfo) => {
+          // Ensure background.ts outputs as background.js
+          return chunkInfo.name === 'background' ? 'background.js' : 'assets/[name]-[hash].js';
+        },
+      },
     },
   },
   resolve: {
