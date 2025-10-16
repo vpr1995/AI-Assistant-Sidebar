@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "AI Assistant Sidebar",
+  "version": "1.0.0",
+  "description": "Privacy-first local AI assistant with Chrome built-in AI and offline Transformers.js fallback",
+  "permissions": [
+    "storage",
+    "sidePanel"
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';"
+  },
+  "side_panel": {
+    "default_path": "index.html"
+  },
+  "action": {
+    "default_title": "Open AI Assistant",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "background": {
+    "service_worker": "background.js"
+  }
+}
