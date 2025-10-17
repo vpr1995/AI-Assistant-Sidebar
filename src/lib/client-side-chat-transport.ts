@@ -486,4 +486,148 @@ export class ClientSideChatTransport implements ChatTransport<UIMessage> {
     // Client-side AI doesn't support stream reconnection
     return null
   }
+
+  /**
+   * Summarize text directly using the current provider
+   * Returns the summary as a string
+   */
+  async summarizeText(prompt: string): Promise<string> {
+    // Detect provider if not already detected
+    if (!this.provider) {
+      this.provider = await this.selectProvider()
+      if (this.providerChangeCallback) {
+        this.providerChangeCallback(this.provider)
+      }
+    }
+
+    const messages: ModelMessage[] = [
+      {
+        role: 'user',
+        content: prompt
+      }
+    ]
+
+    if (this.provider === 'built-in-ai') {
+      const model = builtInAI()
+      const result = streamText({
+        model,
+        messages,
+      })
+      
+      // Collect all text chunks
+      let fullText = ''
+      const reader = result.toUIMessageStream().getReader()
+      
+      try {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          
+          if (value.type === 'text-delta') {
+            fullText += value.delta
+          }
+        }
+      } finally {
+        reader.releaseLock()
+      }
+      
+      return fullText
+    } else {
+      // WebLLM
+      const modelId = 'Llama-3.2-1B-Instruct-q4f16_1-MLC'
+      const model = await this.getOrInitializeWebLLMModel(modelId)
+      
+      const result = streamText({
+        model,
+        messages,
+      })
+      
+      // Collect all text chunks
+      let fullText = ''
+      const reader = result.toUIMessageStream().getReader()
+      
+      try {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          
+          if (value.type === 'text-delta') {
+            fullText += value.delta
+          }
+        }
+      } finally {
+        reader.releaseLock()
+      }
+      
+      return fullText
+    }
+  }
+
+  /**
+   * Stream summary text with callback for each chunk
+   * Allows UI to update in real-time as text is generated
+   */
+  async streamSummary(prompt: string, onChunk: (chunk: string) => void): Promise<void> {
+    // Detect provider if not already detected
+    if (!this.provider) {
+      this.provider = await this.selectProvider()
+      if (this.providerChangeCallback) {
+        this.providerChangeCallback(this.provider)
+      }
+    }
+
+    const messages: ModelMessage[] = [
+      {
+        role: 'user',
+        content: prompt
+      }
+    ]
+
+    if (this.provider === 'built-in-ai') {
+      const model = builtInAI()
+      const result = streamText({
+        model,
+        messages,
+      })
+      
+      const reader = result.toUIMessageStream().getReader()
+      
+      try {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          
+          if (value.type === 'text-delta') {
+            onChunk(value.delta)
+          }
+        }
+      } finally {
+        reader.releaseLock()
+      }
+    } else {
+      // WebLLM
+      const modelId = 'Llama-3.2-1B-Instruct-q4f16_1-MLC'
+      const model = await this.getOrInitializeWebLLMModel(modelId)
+      
+      const result = streamText({
+        model,
+        messages,
+      })
+      
+      const reader = result.toUIMessageStream().getReader()
+      
+      try {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          
+          if (value.type === 'text-delta') {
+            onChunk(value.delta)
+          }
+        }
+      } finally {
+        reader.releaseLock()
+      }
+    }
+  }
 }

@@ -21,6 +21,27 @@ html, body {
   overflow-y: hidden !important;
 }
 
+/* Fix link colors in messages - ensure they're visible */
+.group\/message a,
+.group\/message a:link,
+.group\/message a:visited {
+  color: hsl(var(--primary-foreground)) !important;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.group\/message a:hover {
+  opacity: 0.8;
+}
+
+/* For user messages (with primary background), links should be even brighter */
+.bg-primary a,
+.bg-primary a:link,
+.bg-primary a:visited {
+  color: white !important;
+  font-weight: 500;
+}
+
 /* Header Section - Fixed Top */
 .sidebar-header {
   display: flex;

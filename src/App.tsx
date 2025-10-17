@@ -137,7 +137,7 @@ function App() {
     transport.setPreferredProvider(preferredProvider)
   }, [preferredProvider, transport])
 
-  const { status, sendMessage, messages: rawMessages, stop } = useChat<UIMessage>({
+  const { status, sendMessage, messages: rawMessages, stop, setMessages } = useChat<UIMessage>({
     transport: transport,
     onError(error: Error) {
       console.error('Chat error:', error)
@@ -153,6 +153,103 @@ function App() {
     },
     experimental_throttle: 50,
   })
+
+  // Listen for page summarization requests from background script
+  useEffect(() => {
+    // Check if chrome.runtime is available (it won't be during local dev with vite dev server)
+    if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.onMessage) {
+      console.log('[App] chrome.runtime not available, skipping message listener (normal in dev mode)');
+      return;
+    }
+
+    const handleMessage = async (
+      message: { action: string; data?: { title: string; content: string; url: string; excerpt: string; byline: string; siteName: string } }
+    ) => {
+      if (message.action === 'summarizePage' && message.data) {
+        console.log('[App] Received summarize page request:', message.data);
+        
+        try {
+          // Clear existing messages when starting a new summarization
+          setMessages([]);
+          
+          // Create user message with title and URL
+          const userMessageId = `user-${Date.now()}`;
+          const userMessage: UIMessage = {
+            id: userMessageId,
+            role: 'user',
+            parts: [{
+              type: 'text',
+              text: `Summarize: **${message.data.title}**\n${message.data.url}`
+            }]
+          };
+          
+          // Add user message to chat immediately
+          setMessages((prevMessages) => [...prevMessages, userMessage]);
+          
+          // Prepare summarization prompt for AI (this includes the content but won't be visible)
+          const summarizationPrompt = `Please provide a concise summary of the following web page:
+
+Title: ${message.data.title}
+URL: ${message.data.url}
+${message.data.byline ? `Author: ${message.data.byline}\n` : ''}
+Content:
+${message.data.content.slice(0, 8000)}${message.data.content.length > 8000 ? '\n\n[Content truncated for length]' : ''}
+
+Provide a clear, well-structured summary focusing on the main points and key information.`;
+
+          // Create an AI message that will be updated as streaming happens
+          const aiMessageId = `assistant-${Date.now()}`;
+          let aiMessage: UIMessage = {
+            id: aiMessageId,
+            role: 'assistant',
+            parts: [{
+              type: 'text',
+              text: ''
+            }]
+          };
+          
+          // Add empty AI message
+          setMessages((prevMessages) => [...prevMessages, aiMessage]);
+          
+          // Stream the response and update the AI message
+          await transport.streamSummary(summarizationPrompt, (chunk: string) => {
+            // Update the AI message with accumulated text
+            aiMessage = {
+              ...aiMessage,
+              parts: [{
+                type: 'text',
+                text: (aiMessage.parts[0] as { type: 'text'; text: string }).text + chunk
+              }]
+            };
+            
+            // Update messages array
+            setMessages((prevMessages) => {
+              const messages = [...prevMessages];
+              const lastIndex = messages.length - 1;
+              if (lastIndex >= 0 && messages[lastIndex] && messages[lastIndex].id === aiMessageId) {
+                messages[lastIndex] = aiMessage;
+              }
+              return messages;
+            });
+          });
+          
+        } catch (error) {
+          console.error('[App] Error summarizing page:', error);
+          alert('Failed to summarize page. Please try again.');
+        }
+      }
+    };
+
+    // Add listener
+    chrome.runtime.onMessage.addListener(handleMessage);
+
+    // Cleanup
+    return () => {
+      if (chrome.runtime && chrome.runtime.onMessage) {
+        chrome.runtime.onMessage.removeListener(handleMessage);
+      }
+    };
+  }, [transport, setMessages]);
 
   // Convert messages to the format expected by Chat component
   const messages = rawMessages.map(convertToMessage)

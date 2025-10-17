@@ -5,7 +5,10 @@
   "description": "Privacy-first local AI assistant with Chrome built-in AI and offline Transformers.js fallback",
   "permissions": [
     "storage",
-    "sidePanel"
+    "sidePanel",
+    "contextMenus",
+    "activeTab",
+    "scripting"
   ],
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' https://cdn.jsdelivr.net https://cas-bridge.xethub.hf.co/ https://raw.githubusercontent.com/ https://huggingface.co https://huggingface-cdn-a.hf.space https://*.huggingface.co; object-src 'self';"
@@ -28,5 +31,12 @@
   },
   "background": {
     "service_worker": "background.js"
-  }
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
 }
