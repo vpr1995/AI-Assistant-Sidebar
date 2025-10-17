@@ -13,6 +13,7 @@ import { ClientSideChatTransport } from '@/lib/client-side-chat-transport'
 import { Chat } from '@/components/ui/chat'
 import { ProviderSelector } from '@/components/ui/provider-selector'
 import type { Message } from '@/components/ui/chat-message'
+import { summarizeWithFallback } from '@/lib/summarizer-utils'
 import './App.css'
 
 // Unified message type supporting both providers
@@ -211,27 +212,41 @@ Provide a clear, well-structured summary focusing on the main points and key inf
           // Add empty AI message
           setMessages((prevMessages) => [...prevMessages, aiMessage]);
           
-          // Stream the response and update the AI message
-          await transport.streamSummary(summarizationPrompt, (chunk: string) => {
-            // Update the AI message with accumulated text
-            aiMessage = {
-              ...aiMessage,
-              parts: [{
-                type: 'text',
-                text: (aiMessage.parts[0] as { type: 'text'; text: string }).text + chunk
-              }]
-            };
-            
-            // Update messages array
-            setMessages((prevMessages) => {
-              const messages = [...prevMessages];
-              const lastIndex = messages.length - 1;
-              if (lastIndex >= 0 && messages[lastIndex] && messages[lastIndex].id === aiMessageId) {
-                messages[lastIndex] = aiMessage;
-              }
-              return messages;
-            });
-          });
+          // Use Chrome Summarizer API with fallback to LLM transport
+          const summarizerProvider = await summarizeWithFallback(
+            summarizationPrompt,
+            (chunk: string) => {
+              // Update the AI message with accumulated text
+              aiMessage = {
+                ...aiMessage,
+                parts: [{
+                  type: 'text',
+                  text: (aiMessage.parts[0] as { type: 'text'; text: string }).text + chunk
+                }]
+              };
+              
+              // Update messages array
+              setMessages((prevMessages) => {
+                const messages = [...prevMessages];
+                const lastIndex = messages.length - 1;
+                if (lastIndex >= 0 && messages[lastIndex] && messages[lastIndex].id === aiMessageId) {
+                  messages[lastIndex] = aiMessage;
+                }
+                return messages;
+              });
+            },
+            { 
+              type: 'key-points',
+              length: 'long',
+              format: 'markdown'
+            },
+            // Fallback function using the transport
+            async (text: string, onChunk: (chunk: string) => void) => {
+              await transport.streamSummary(text, onChunk);
+            }
+          );
+          
+          console.log('[App] Summarization complete with provider:', summarizerProvider);
           
         } catch (error) {
           console.error('[App] Error summarizing page:', error);
