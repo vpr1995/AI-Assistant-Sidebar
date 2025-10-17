@@ -1,16 +1,14 @@
-# Chrome Extension Project Overview
+# Chrome Extension - AI Assistant with Page Summarization
 
-## Purpose
-This project is building a **privacy-first, local AI assistant as a Chrome sidebar extension**. The extension will run AI models directly in the browser using WebGPU/WebAssembly, providing users with:
+## Project Purpose
+A **privacy-first, local AI assistant** as a Chrome sidebar extension with added page summarization feature. The extension runs AI models directly in the browser using WebGPU/WebAssembly, providing complete data privacy with zero external API calls.
 
-- Text generation (LLM chat interface with streaming)
-- Image generation (multimodal AI)
-- Speech-to-text (Whisper transcription)
-- Text-to-speech capabilities
-- Complete data privacy (100% local processing, zero external API calls)
-- Offline functionality after model caching
-
-The UI is inspired by shadcn.io's AI chatbot interface with streaming responses, markdown rendering, and copy functionality.
+### Core Features
+- **Text Generation**: LLM chat interface with streaming responses
+- **Page Summarization**: Right-click context menu to summarize any web page
+- **Complete Privacy**: 100% local processing, no external API calls
+- **Offline Functionality**: Models cached locally after first use
+- **Streaming UI**: Character-by-character responses with typing animation
 
 ## Tech Stack
 
@@ -20,68 +18,226 @@ The UI is inspired by shadcn.io's AI chatbot interface with streaming responses,
 - **TypeScript** - Strict type checking enabled
 
 ### UI & Styling
-- **Tailwind CSS** - Utility-first CSS framework (✅ installed and configured)
-- **shadcn/ui** - React component library (✅ configured)
-- **shadcn/ui AI Chatbot Components** - Chat, Message, MessageInput components (✅ installed)
+- **Tailwind CSS** - Utility-first CSS framework
+- **shadcn/ui** - React component library
+- **Framer Motion** - Smooth animations
 
 ### AI Runtime
-- **Vercel AI SDK (`ai`)** - Standardized AI streaming APIs (✅ installed)
-- **@ai-sdk/react** - useChat hook for client-side AI (✅ installed)
-- **@built-in-ai/core** - Chrome's built-in Gemini Nano/Phi Mini (✅ installed, PRIMARY)
-- **@built-in-ai/transformers-js** - Transformers.js wrapper with model selection (✅ installed, FALLBACK)
+- **Vercel AI SDK (`ai`)** - Standardized AI streaming APIs
+- **@ai-sdk/react** - useChat hook for client-side AI
+- **@built-in-ai/core** - Chrome's built-in Gemini Nano/Phi Mini (PRIMARY)
+- **@built-in-ai/web-llm** - WebLLM with model selection (FALLBACK)
 - **WebGPU** - Hardware acceleration (with WASM fallback)
-- **Web Workers** - Off-main-thread model inference (⏳ planned)
+
+### Content Processing
+- **@mozilla/readability** - Extracts main article content from any webpage
+- **react-markdown** - Renders markdown in messages with syntax highlighting
 
 ### Chrome Extension
-- **Manifest V3** - Chrome extension manifest in `public/manifest.json` (✅ configured)
-- **Side Panel API** - Sidebar extension (400px - 100% width responsive) (✅ implemented)
-- **Background Service Worker** - `src/background.ts` compiled to `dist/background.js` (✅ configured)
+- **Manifest V3** - Modern extension format
+- **Side Panel API** - For the sidebar
+- **Content Scripts** - Page content extraction
+- **Background Service Worker** - Context menu and message routing
 
-## Current State (October 15, 2025)
+## Architecture
 
-### ✅ Phase 1: Foundation & Setup (5/5 Completed)
-- Project setup with all dependencies
-- Chrome extension manifest with side panel API
-- Tailwind CSS + shadcn/ui configured
-- shadcn/ui AI Chatbot Components installed
-- Sidebar layout with header, scrollable content, fixed input
+### Dual-Provider AI System
+1. **Primary**: Chrome Built-in AI (`@built-in-ai/core`)
+   - Uses native Gemini Nano (Chrome) or Phi Mini (Edge)
+   - Zero model download after first use (Chrome manages caching)
+   - Fastest inference, hardware-optimized
 
-### 🔄 Phase 2: Chat Interface (2/4 Partially Complete)
-- Chat component integrated with streaming
-- Basic messaging working with user/AI roles
-- Markdown rendering optimized (using highlight.js instead of shiki - saved 330 modules)
-- Message input working with auto-resize
-- Fixed horizontal scrollbar issue (overflow-x-hidden)
-- Added typing indicator with bouncing dots animation
+2. **Fallback**: WebLLM (`@built-in-ai/web-llm`)
+   - Used when Built-in AI unavailable
+   - Manual model selection from multiple options
+   - User manages cache
 
-### ✅ Phase 3: AI Integration (2/4 Completed)
-- ✅ Custom ClientSideChatTransport for useChat hook
-- ✅ Built-in AI detection and status display
-- ✅ Text streaming with abort capability
-- ✅ Download progress tracking for models
-- ⏳ Model download progress UI (partially - progress in transport)
-- ⏳ Error handling improvements needed
+### Page Summarization Flow
+```
+User right-clicks on page
+    ↓
+Background service worker receives context menu click
+    ↓
+Sends message to content script
+    ↓
+Content script extracts page content using @mozilla/readability
+    ↓
+Sends extracted data back to background
+    ↓
+Background broadcasts to sidebar
+    ↓
+App.tsx receives summarization request
+    ↓
+Clears existing messages
+    ↓
+Shows user message: "Summarize: **Page Title**\n{URL}"
+    ↓
+Calls transport.streamSummary() with page content
+    ↓
+AI response streams in with typing animation
+    ↓
+User can continue chatting about summary
+```
 
-### ⏰ Phases 4-6: Not Started (0/18)
-- Advanced features (copy, regenerate, voice input, image generation)
-- Storage & settings (chat history, cache management, generation config)
-- Testing & polish (accessibility, performance, packaging)
+### Data Flow
+```
+User Input → useChat Hook → ClientSideChatTransport 
+    ↓
+AI Provider (Built-in AI or WebLLM)
+    ↓
+Streaming Response
+    ↓
+UI Updates in Real-Time
+```
 
-## Recent Achievements
-1. **Bundle Optimization**: Reduced from 2,981 to 2,651 modules (11% reduction)
-2. **TypeScript/ESLint Clean**: Fixed all compilation errors and type safety issues
-3. **UI/UX Improvements**: Responsive layout, typing indicator, no horizontal scroll
-4. **AI Integration**: Custom transport, streaming, download progress, error handling
+## File Structure
 
-## Project Goals
-Build a fully functional local AI assistant that:
-1. Runs entirely in the browser (privacy-first)
-2. Uses Chrome's sidebar for persistent access
-3. Provides ChatGPT-like UX with streaming
-4. Supports multiple AI models and tasks (text, image, voice)
-5. Works offline after initial model download
+```
+src/
+├── App.tsx                 # Main sidebar container, chat logic, summarization handler
+├── background.ts           # Background service worker, context menu, message routing
+├── content.ts              # Content script for page content extraction
+├── main.tsx                # React entry point
+├── components/
+│   └── ui/                 # shadcn/ui components
+│       ├── chat.tsx
+│       ├── chat-message.tsx
+│       ├── message-list.tsx
+│       ├── message-input.tsx
+│       ├── markdown-renderer.tsx
+│       ├── typing-indicator.tsx
+│       └── ... other components
+├── hooks/                  # Custom React hooks
+│   ├── use-auto-scroll.ts
+│   ├── use-autosize-textarea.ts
+│   ├── use-audio-recording.ts
+│   └── use-provider-context.tsx
+└── lib/                    # Utility libraries
+    ├── client-side-chat-transport.ts  # Custom transport with streamSummary()
+    ├── audio-utils.ts
+    └── utils.ts
+```
 
-## Progress Summary
-- **Total Tasks**: 30
-- **Completed**: 7/30 (23%)
-- **Current Focus**: Chat interface and AI integration refinement
+## Key Implementation Details
+
+### Summarization Feature
+1. **Content Extraction**: Uses `@mozilla/readability` for clean article extraction
+2. **User Message**: Shows title (bold) and URL (white text for visibility)
+3. **Chat Reset**: Clears chat on each new summarization for fresh context
+4. **Streaming**: AI response streams with typing animation
+5. **Privacy**: Page content not shown in messages, only sent to AI
+
+### Transport Layer Enhancements
+- `sendMessages()` - Standard chat message handling
+- `summarizeText()` - Direct text summary (returns full text)
+- `streamSummary()` - Streaming summary with callback (for typing animation)
+
+### Message Format
+- User message: Shows page title (markdown bold) and URL
+- AI response: Streams character-by-character with animation
+- No raw page content visible in chat interface
+
+## Configuration
+
+### TypeScript
+- `tsconfig.json` - Main TypeScript config
+- `tsconfig.app.json` - React app config with strict mode enabled
+- `tsconfig.node.json` - Node.js scripts config
+
+### Vite Build
+- Input files: `index.html`, `src/background.ts`, `src/content.ts`
+- Output: `dist/` with separate `background.js` and `content.js`
+- CSS pipeline: Tailwind + PostCSS
+
+### Chrome Manifest
+- Version: 3 (Manifest V3)
+- Permissions: `storage`, `sidePanel`, `contextMenus`, `activeTab`, `scripting`
+- Content scripts: Run on `<all_urls>` at `document_idle`
+- CSP: Allows WASM (`wasm-unsafe-eval`)
+
+## Development Workflow
+
+1. **Development**:
+   ```bash
+   npm run dev    # Vite dev server
+   ```
+
+2. **Build**:
+   ```bash
+   npm run build  # Production build
+   ```
+
+3. **Preview**:
+   ```bash
+   npm run preview  # Preview built app
+   ```
+
+4. **Linting**:
+   ```bash
+   npm run lint   # ESLint check
+   ```
+
+5. **Testing in Chrome**:
+   - Run `npm run build`
+   - Go to `chrome://extensions/`
+   - Enable "Developer mode"
+   - Click "Load unpacked"
+   - Select `dist/` folder
+   - To reload: Click reload icon on extension card
+
+## Browser Requirements
+
+### Built-in AI Support
+- Chrome 128+ or Edge Dev 138.0.3309.2+
+- Enable flag: `chrome://flags/#prompt-api-for-gemini-nano` (Chrome)
+- Enable flag: `edge://flags/#prompt-api-for-phi-mini` (Edge)
+
+### WebLLM Fallback
+- Any browser with WebGPU or WASM support
+- Works offline with manual model management
+
+## Code Style & Conventions
+
+### Components
+- Functional components with hooks
+- Use function declarations, not arrow functions for top-level components
+- Always use explicit types for props and parameters
+
+### Styling
+- Tailwind CSS for all styles
+- `cn()` utility for conditional classes
+- Dark mode supported via CSS variables
+
+### File Naming
+- Components: `kebab-case.tsx`
+- Hooks: `use-kebab-case.ts`
+- Utilities: `kebab-case.ts`
+
+### Commits
+- Conventional commit format: `feat(feature): description`
+- Examples: `feat(summarize): add page summarization`, `fix(ui): fix link colors`
+
+## Current Status
+
+### ✅ Completed Features
+1. **Foundation & Setup** - Project initialized with all dependencies
+2. **Chat Interface** - Full UI with message display and input
+3. **AI Integration** - Dual-provider system with streaming
+4. **Page Summarization** - Right-click → summarize flow complete
+5. **Content Extraction** - Using @mozilla/readability
+6. **Streaming Responses** - Character-by-character with animation
+7. **Link Styling** - URLs visible in white/bright colors
+8. **Chat Management** - Auto-clear on new summarization
+
+### 📦 Build Status
+- ✅ Vite build configured for multiple entry points
+- ✅ CSS and JS bundled correctly
+- ✅ Content script and background script separate
+- ✅ Total bundle size: ~6.4MB (includes AI models)
+
+### 🎯 Next Steps (Future)
+- Voice input (speech-to-text with Whisper)
+- Image generation capabilities
+- Chat history persistence
+- Model cache management UI
+- Settings panel for AI parameters

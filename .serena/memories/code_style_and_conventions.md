@@ -1,412 +1,470 @@
 # Code Style and Conventions
 
-## TypeScript Standards
+## Component Patterns
 
-### Component Structure
+### Functional Components
 ```typescript
-// 1. Imports (grouped by category)
-import { useState, useEffect } from 'react'
-import { useChat } from '@ai-sdk/react'
-import { Button } from './components/ui/button'
-import { cn } from './lib/utils'
-
-// 2. Type/Interface definitions
-interface ComponentProps {
-  title: string;
-  onAction?: () => void;
+// ✅ Correct: Function declaration at top level
+function MyComponent() {
+  return <div>Content</div>
 }
 
-// 3. Component definition (function declaration, not arrow)
-export default function Component({ title, onAction }: ComponentProps) {
-  // 4. Hooks at the top
-  const [state, setState] = useState<string>('');
-  const { messages, append } = useChat();
-  
-  useEffect(() => {
-    // Effects after state hooks
-  }, []);
-  
-  // 5. Event handlers
-  const handleClick = () => {
-    setState('new value');
-  };
-  
-  // 6. Render helpers (if needed)
-  const renderContent = () => {
-    return <div>{title}</div>;
-  };
-  
-  // 7. JSX return
-  return (
-    <div className="container">
-      {renderContent()}
-    </div>
-  );
+// ❌ Avoid: Arrow function for top-level component
+const MyComponent = () => {
+  return <div>Content</div>
 }
 ```
 
-### Type Safety Rules
-1. **Always define types** for props, state, and function parameters
-2. **Use interfaces** for object shapes (not types)
-3. **Avoid `any`** - use `unknown` if type is truly unknown
-4. **Enable strict mode** in tsconfig.json (already enabled)
-5. **Export types** when shared across files
-
+### Props and Types
 ```typescript
-// Good
-interface Message {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
+// ✅ Always use explicit types
+interface MyComponentProps {
+  title: string
+  count: number
+  onClick: (id: string) => void
 }
 
-// Bad
-const message: any = { ... };
-```
-
-## React Conventions
-
-### Component Patterns
-- **Functional Components Only**: No class components
-- **Hooks for State**: useState, useEffect, custom hooks
-- **Default Export**: For page-level components
-- **Named Exports**: For utility components
-
-```typescript
-// Page-level component (default export)
-export default function ChatPage() { ... }
-
-// Utility component (named export)
-export function ChatMessage({ message }: { message: Message }) { ... }
-```
-
-### Hook Usage
-```typescript
-// ✅ Good: Hooks at top, consistent order
-function Component() {
-  const [state, setState] = useState('');
-  const { data, isLoading } = useChat();
-  
-  useEffect(() => {
-    // Side effects
-  }, [dependency]);
-  
-  return <div>...</div>;
+function MyComponent({ title, count, onClick }: MyComponentProps) {
+  return <div>{title}</div>
 }
 
-// ❌ Bad: Hooks in conditions or loops
-function Component() {
-  if (condition) {
-    const [state, setState] = useState(''); // WRONG!
-  }
+// ❌ Avoid: Implicit any types
+function MyComponent(props: any) {
+  return <div>{props.title}</div>
 }
 ```
 
-### State Updates
+### Hooks Usage
 ```typescript
-// ✅ Good: Functional updates for arrays/objects
-setMessages(prev => [...prev, newMessage]);
-setUser(prev => ({ ...prev, name: 'New Name' }));
+// ✅ Standard React hooks
+const [state, setState] = useState<string>('')
+const [data, setData] = useState<DataType | null>(null)
 
-// ❌ Bad: Direct mutation
-messages.push(newMessage); // WRONG!
-setMessages(messages);
-```
+// ✅ Effect with cleanup
+useEffect(() => {
+  const handler = () => { /* ... */ }
+  element.addEventListener('event', handler)
+  return () => element.removeEventListener('event', handler)
+}, [dependency])
 
-## Tailwind CSS Styling
+// ✅ Callback with dependencies
+const handleClick = useCallback(() => {
+  // Only recreated if dependencies change
+}, [dependency])
 
-### Class Organization
-Use `cn()` utility for conditional classes:
-
-```typescript
-import { cn } from '@/lib/utils';
-
-<div className={cn(
-  // Base classes
-  "flex flex-col items-center",
-  // Responsive classes
-  "md:flex-row md:justify-between",
-  // Conditional classes
-  isActive && "bg-blue-500",
-  isDisabled && "opacity-50 cursor-not-allowed"
-)}>
-```
-
-### Naming Patterns
-- **Container**: `container`, `max-w-screen-xl`
-- **Spacing**: `p-4`, `px-6`, `py-2`, `m-4`, `space-x-2`
-- **Typography**: `text-sm`, `font-medium`, `text-gray-700`
-- **Layout**: `flex`, `grid`, `absolute`, `relative`
-- **Responsive**: `sm:`, `md:`, `lg:`, `xl:` prefixes
-
-### Dark Mode Support
-```typescript
-<div className="bg-white dark:bg-gray-900 text-black dark:text-white">
+// ✅ Memoization for expensive computations
+const value = useMemo(() => {
+  return expensiveCalculation(data)
+}, [data])
 ```
 
 ## File Organization
 
-### Component Files
-```
-component-name.tsx
-├── Imports
-├── Types/Interfaces
-├── Main Component
-└── Helper Components (if small)
-```
-
-### Hook Files
-```
-use-hook-name.ts
-├── Imports
-├── Types
-├── Hook Definition
-└── Export
-```
-
-### Utility Files
-```
-utils.ts
-├── Type Definitions
-├── Helper Functions
-└── Exports
-```
-
-## Naming Conventions
-
-### Variables & Functions
-- **camelCase**: `userName`, `handleClick`, `isLoading`
-- **Boolean prefixes**: `is`, `has`, `should`, `can`
-- **Event handlers**: `handle` prefix (e.g., `handleSubmit`)
-- **Async functions**: Consider `async` suffix for clarity
+### Imports
+Group in this order:
+1. React and external libraries
+2. UI components
+3. Hooks
+4. Utilities and types
+5. Styles
 
 ```typescript
-// Good
-const isAuthenticated = true;
-const hasPermission = checkPermission();
-async function fetchUserData() { ... }
-const handleButtonClick = () => { ... };
-
-// Bad
-const authenticated = true; // unclear if boolean
-const click = () => { ... }; // unclear what it does
-```
-
-### Components
-- **PascalCase**: `ChatMessage`, `UserProfile`, `MessageList`
-- **Descriptive names**: Avoid generic names like `Component`, `Item`
-- **Composite names**: Combine purpose + type (e.g., `ChatInput`, `UserAvatar`)
-
-### Types & Interfaces
-- **PascalCase**: `Message`, `UserProfile`, `ChatState`
-- **Interface suffix**: Optional, use for clarity (e.g., `IMessage` if preferred)
-- **Props suffix**: Always use for component props (e.g., `ChatMessageProps`)
-
-```typescript
-interface ChatMessageProps {
-  message: Message;
-  onDelete?: () => void;
-}
-```
-
-### Files
-- **kebab-case**: `chat-message.tsx`, `use-auto-scroll.ts`
-- **Match component name**: `ChatMessage` → `chat-message.tsx`
-- **Descriptive**: `audio-utils.ts`, not `utils.ts` in subdirectory
-
-## Import Organization
-
-### Order
-1. React and core libraries
-2. External packages
-3. Internal components
-4. Internal hooks
-5. Internal utilities
-6. Types (if separate file)
-7. Styles
-
-```typescript
-// 1. React
 import { useState, useEffect } from 'react'
-
-// 2. External packages
 import { useChat } from '@ai-sdk/react'
-import { builtInAI } from '@built-in-ai/core'
 
-// 3. Components
-import { Button } from './components/ui/button'
-import { Chat } from './components/ui/chat'
+import { Chat } from '@/components/ui/chat'
+import { MarkdownRenderer } from '@/components/ui/markdown-renderer'
 
-// 4. Hooks
-import { useAutoScroll } from './hooks/use-auto-scroll'
+import { useAutoScroll } from '@/hooks/use-auto-scroll'
+import { cn } from '@/lib/utils'
 
-// 5. Utils
-import { cn } from './lib/utils'
-
-// 6. Types
-import type { Message } from './types'
-
-// 7. Styles
 import './App.css'
 ```
 
-## Error Handling
+### File Naming
+- **Components**: `kebab-case.tsx`
+  - Example: `chat-message.tsx`, `message-list.tsx`
+  
+- **Hooks**: `use-kebab-case.ts`
+  - Example: `use-auto-scroll.ts`, `use-copy-to-clipboard.ts`
+  
+- **Utilities**: `kebab-case.ts`
+  - Example: `utils.ts`, `audio-utils.ts`
+  
+- **Type definitions**: In same file or `types.ts`
 
-### Try-Catch Pattern
+### Component File Structure
 ```typescript
-async function fetchData() {
+// Interfaces and types
+interface ComponentProps {
+  title: string
+}
+
+// Helper functions
+function helperFunction() { }
+
+// Main component
+function Component({ title }: ComponentProps) {
+  // Hooks first
+  const [state, setState] = useState()
+  
+  // Effects
+  useEffect(() => {}, [])
+  
+  // Event handlers
+  const handleClick = () => {}
+  
+  // Render
+  return <div>{title}</div>
+}
+
+export default Component
+```
+
+## Styling
+
+### Tailwind Classes
+```typescript
+// ✅ Use utility classes
+<div className="flex items-center gap-2 p-4 rounded-lg bg-muted">
+
+// ✅ Use cn() for conditional classes
+<div className={cn(
+  "base-classes",
+  isActive && "active-classes",
+  isDisabled && "disabled-classes"
+)}>
+
+// ❌ Avoid: Inline style objects
+<div style={{ display: 'flex', gap: '8px' }}>
+
+// ❌ Avoid: CSS-in-JS for simple cases
+const styles = { container: { display: 'flex' } }
+```
+
+### Dark Mode
+- Use CSS variables for theme colors
+- Tailwind handles dark class application
+- Example: `bg-background dark:bg-background`
+
+### Component Styling Pattern
+```typescript
+// ✅ Use cva (class-variance-authority) for variants
+const buttonVariants = cva(
+  "px-4 py-2 rounded-md transition-colors",
+  {
+    variants: {
+      variant: {
+        primary: "bg-primary text-white hover:bg-primary/90",
+        secondary: "bg-secondary text-black hover:bg-secondary/90",
+      },
+      size: {
+        sm: "text-sm",
+        md: "text-base",
+        lg: "text-lg",
+      },
+    },
+    defaultVariants: {
+      variant: "primary",
+      size: "md",
+    },
+  }
+)
+
+interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof buttonVariants> {}
+
+function Button({ variant, size, className, ...props }: ButtonProps) {
+  return (
+    <button className={cn(buttonVariants({ variant, size }), className)} {...props} />
+  )
+}
+```
+
+## Async/Await Patterns
+
+```typescript
+// ✅ Async operations in effects
+useEffect(() => {
+  const fetchData = async () => {
+    try {
+      const response = await fetch('/api/data')
+      const data = await response.json()
+      setData(data)
+    } catch (error) {
+      console.error('Error:', error)
+    }
+  }
+  
+  fetchData()
+}, [dependency])
+
+// ✅ Async handlers
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault()
   try {
-    const data = await api.fetch();
-    return data;
+    await submitForm()
   } catch (error) {
-    console.error('Error fetching data:', error);
-    // User-friendly error handling
-    toast.error('Failed to load data. Please try again.');
-    return null;
+    setError(error.message)
+  }
+}
+
+// ❌ Avoid: Direct async in useEffect return
+useEffect(() => {
+  return async () => { } // ❌ Don't do this
+}, [])
+```
+
+## TypeScript Conventions
+
+### Explicit Return Types
+```typescript
+// ✅ Always type function returns
+function getData(): Promise<DataType> {
+  return fetch('/api/data').then(r => r.json())
+}
+
+function sum(a: number, b: number): number {
+  return a + b
+}
+
+// ❌ Avoid: Implicit returns
+function getData() {
+  return fetch('/api/data').then(r => r.json())
+}
+```
+
+### Type Unions and Guards
+```typescript
+// ✅ Discriminated unions
+type Response = 
+  | { status: 'success'; data: T }
+  | { status: 'error'; error: Error }
+
+// ✅ Type guards
+function isSuccess(response: Response): response is { status: 'success'; data: T } {
+  return response.status === 'success'
+}
+
+if (isSuccess(response)) {
+  console.log(response.data)
+}
+
+// ✅ Exhaustive checks with never
+type Direction = 'up' | 'down' | 'left' | 'right'
+
+function handle(dir: Direction) {
+  switch (dir) {
+    case 'up': break
+    case 'down': break
+    case 'left': break
+    case 'right': break
+    default: const _exhaustive: never = dir
   }
 }
 ```
 
-### Error Boundaries (React)
+### Generics
 ```typescript
-// Create error boundary for critical sections
-<ErrorBoundary fallback={<ErrorMessage />}>
-  <ChatInterface />
-</ErrorBoundary>
-```
+// ✅ Generic components
+interface ListProps<T> {
+  items: T[]
+  renderItem: (item: T) => React.ReactNode
+}
 
-## Comments & Documentation
+function List<T>({ items, renderItem }: ListProps<T>) {
+  return <ul>{items.map(renderItem)}</ul>
+}
 
-### When to Comment
-- **Complex logic**: Explain why, not what
-- **Workarounds**: Document temporary fixes
-- **Non-obvious code**: Clarify intent
-- **Public APIs**: JSDoc for exported functions
-
-```typescript
-// ✅ Good: Explains why
-// Delay is needed to avoid race condition with Chrome's side panel API
-await new Promise(resolve => setTimeout(resolve, 100));
-
-// ❌ Bad: States the obvious
-// Set loading to true
-setLoading(true);
-```
-
-### JSDoc for Functions
-```typescript
-/**
- * Sends a message to the AI model and streams the response
- * @param message - The user's message text
- * @param onChunk - Callback for each streamed chunk
- * @returns Promise that resolves when streaming is complete
- */
-async function streamMessage(
-  message: string,
-  onChunk: (chunk: string) => void
-): Promise<void> {
-  // Implementation
+// ✅ Generic utility functions
+function createMap<K, V>(keys: K[], values: V[]): Map<K, V> {
+  return new Map(keys.map((k, i) => [k, values[i]]))
 }
 ```
 
-## Performance Best Practices
+## Naming Conventions
 
-### Memoization
+### Variables and Functions
 ```typescript
-// Memoize expensive computations
-const sortedMessages = useMemo(() => {
-  return messages.sort((a, b) => a.timestamp - b.timestamp);
-}, [messages]);
+// ✅ Clear, descriptive names
+const isLoading = true
+const handleSubmit = () => {}
+const messageCount = 5
+const getActiveProvider = () => {}
 
-// Memoize callbacks
-const handleClick = useCallback(() => {
-  doSomething(id);
-}, [id]);
-
-// Memoize components
-const MemoizedComponent = React.memo(ExpensiveComponent);
+// ❌ Avoid: Single letters or abbreviations
+const l = true
+const h = () => {}
+const cnt = 5
+const getAProv = () => {}
 ```
 
-### Lazy Loading
+### Constants
 ```typescript
-// Lazy load heavy components
-const SettingsModal = lazy(() => import('./components/SettingsModal'));
+// ✅ UPPER_CASE for true constants
+const MAX_MESSAGE_LENGTH = 1000
+const STORAGE_KEY = 'chat_history'
 
-// Use with Suspense
-<Suspense fallback={<LoadingSpinner />}>
-  <SettingsModal />
-</Suspense>
+// ✅ camelCase for static values
+const defaultTimeout = 5000
+const supportedProviders = ['built-in-ai', 'web-llm']
 ```
 
-## Testing Patterns (Future)
-
-### Component Tests
+### Booleans
 ```typescript
-import { render, screen } from '@testing-library/react';
-import ChatMessage from './ChatMessage';
+// ✅ Use is/has/can prefixes
+const isLoading = false
+const hasError = true
+const canSubmit = true
+const isVisible = false
 
-test('renders user message', () => {
-  render(<ChatMessage message={{ role: 'user', content: 'Hello' }} />);
-  expect(screen.getByText('Hello')).toBeInTheDocument();
-});
+// ❌ Avoid unclear names
+const loading = false
+const error = true
+const submit = true
 ```
 
-### Hook Tests
-```typescript
-import { renderHook, act } from '@testing-library/react';
-import { useAutoScroll } from './use-auto-scroll';
+## Error Handling
 
-test('scrolls to bottom on new message', () => {
-  const { result } = renderHook(() => useAutoScroll());
-  act(() => {
-    result.current.scrollToBottom();
-  });
-  // Assert scroll position
-});
+```typescript
+// ✅ Specific error handling
+try {
+  await aiProvider.generateText(prompt)
+} catch (error) {
+  if (error instanceof ValidationError) {
+    handleValidationError(error)
+  } else if (error instanceof TimeoutError) {
+    handleTimeoutError(error)
+  } else {
+    console.error('Unknown error:', error)
+  }
+}
+
+// ✅ Type-safe error handling
+const result = await operation().catch(error => {
+  console.error('Operation failed:', error)
+  return null
+})
+
+// ❌ Avoid: Generic catches
+try {
+  await operation()
+} catch (e) {
+  console.error('Error:', e) // ❌ e is unknown
+}
+```
+
+## Logging
+
+```typescript
+// ✅ Use consistent log prefixes
+console.log('[App] Component mounted')
+console.log('[Chat] Message sent')
+console.error('[Transport] Provider error:', error)
+
+// ✅ Log with context
+console.log('[API] GET /data', { status: 200, duration: 45 })
+
+// ❌ Avoid: Vague logs
+console.log('test')
+console.log('error in something')
+```
+
+## Comments and Documentation
+
+```typescript
+// ✅ Comment why, not what
+// Use setTimeout to ensure layout has painted before scroll
+setTimeout(() => scrollToBottom(), 0)
+
+// ✅ Document complex functions
+/**
+ * Streams summary text with callback for each chunk
+ * Allows UI to update in real-time as text is generated
+ * 
+ * @param prompt - The summarization prompt with page content
+ * @param onChunk - Callback called with each text delta
+ * @returns Promise that resolves when streaming completes
+ */
+async streamSummary(prompt: string, onChunk: (chunk: string) => void): Promise<void>
+
+// ✅ Mark TODO items
+// TODO: Add retry logic for failed API calls
+// FIXME: Handle edge case when model is not available
 ```
 
 ## Git Commit Messages
 
-### Format
+Follow conventional commits:
 ```
-<type>(<scope>): <subject>
-
-<body>
-
-<footer>
-```
-
-### Types
-- **feat**: New feature
-- **fix**: Bug fix
-- **refactor**: Code refactoring
-- **style**: Formatting changes
-- **docs**: Documentation changes
-- **chore**: Maintenance tasks
-- **test**: Adding tests
-
-### Examples
-```
-feat(chat): add markdown rendering with syntax highlighting
-
-- Replaced shiki with highlight.js for smaller bundle
-- Added support for 5 languages (JS, TS, Python, Bash, JSON)
-- Reduced bundle size by 330 modules
-
-Closes #12
+feat(feature-name): description of feature
+fix(component): description of fix
+docs(readme): update documentation
+style(css): fix formatting
+refactor(hooks): improve code structure
+perf(transport): optimize streaming
+test(chat): add new test cases
+chore(deps): update dependencies
 ```
 
-## Code Review Checklist
+Examples:
+```
+feat(summarize): add page summarization with context menu
+fix(ui): fix link colors visibility in messages
+docs(project): update readme with summarization feature
+refactor(transport): extract streaming logic into helper method
+```
 
-Before submitting code:
-- [ ] TypeScript compilation succeeds (no errors)
-- [ ] ESLint passes (no errors, minimal warnings)
-- [ ] All functions have proper types
-- [ ] Components follow naming conventions
-- [ ] Imports are organized properly
-- [ ] No console.logs (unless intentional)
-- [ ] Error handling implemented
-- [ ] Performance considerations addressed
-- [ ] Accessibility attributes added (ARIA)
-- [ ] Responsive design tested
-- [ ] Git commit message follows convention
+## Performance Optimization
+
+### Memoization
+```typescript
+// ✅ Memo for expensive renders
+const Message = React.memo(function Message({ content }) {
+  return <div>{content}</div>
+})
+
+// ✅ useMemo for expensive computations
+const summary = useMemo(() => {
+  return messages.reduce((sum, m) => sum + m.length, 0)
+}, [messages])
+
+// ✅ useCallback for event handlers
+const handleClick = useCallback(() => {
+  dispatch(action)
+}, [dispatch])
+```
+
+### Lazy Loading
+```typescript
+// ✅ Code splitting with lazy
+const SettingsModal = lazy(() => import('./SettingsModal'))
+
+function App() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <SettingsModal />
+    </Suspense>
+  )
+}
+```
+
+## Accessibility
+
+```typescript
+// ✅ Semantic HTML
+<button onClick={handleClick} aria-label="Send message">
+  Send
+</button>
+
+// ✅ ARIA labels for context
+<div role="status" aria-live="polite" aria-atomic="true">
+  {statusMessage}
+</div>
+
+// ✅ Keyboard navigation
+const handleKeyDown = (e: React.KeyboardEvent) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    handleSubmit()
+  }
+}
+```

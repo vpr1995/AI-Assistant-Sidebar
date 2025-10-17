@@ -2,206 +2,260 @@
 
 ## Dual-Provider System
 
-This Chrome extension uses a **smart dual-provider architecture** to maximize performance, compatibility, and user experience.
+### Provider Selection Priority
+1. **Built-in AI** (Primary) - Chrome's native AI
+   - Fastest performance
+   - No additional downloads needed
+   - Automatically managed by browser
 
-## Primary Provider: Chrome Built-in AI
+2. **WebLLM** (Fallback) - Transformers.js based
+   - Used when Built-in AI unavailable
+   - Manual model management
+   - Works on any browser with WebGPU/WASM
 
-### Package
-- `@built-in-ai/core` from https://github.com/jakobhoeg/built-in-ai
+## Built-in AI Provider
 
-### Features
-- Uses **Chrome's native Gemini Nano** (Chrome 128+) or **Edge's Phi Mini** (Edge Dev 138.0.3309.2+)
-- **Zero downloads after first use** - Chrome manages model caching automatically
-- **No model selection needed** - Browser provides the model
-- **Fastest inference** - Hardware-optimized by the browser
-- **Automatic updates** - Chrome updates the model
-- **Multimodal support** - Can handle images and audio
-
-### Usage
-```javascript
-import { builtInAI, doesBrowserSupportBuiltInAI } from '@built-in-ai/core';
-
-// Check if supported
-if (doesBrowserSupportBuiltInAI()) {
-  const model = builtInAI();
-  const status = await model.availability();
-  
-  // Status can be: "unavailable", "downloadable", "downloading", "available"
-  if (status === "available") {
-    // Use immediately
-  } else if (status === "downloadable") {
-    // Show Chrome's one-time download progress
-    await model.createSessionWithProgress((progress) => {
-      console.log(`Download: ${Math.round(progress * 100)}%`);
-    });
-  }
-}
+### Detection
+```typescript
+doesBrowserSupportBuiltInAI() → true/false
+builtInAI() → model instance
+await model.availability() → "available" | "downloadable" | "after-download" | "unavailable"
 ```
 
-### Browser Requirements
-- **Chrome**: Version 128+ with flag enabled: `chrome://flags/#prompt-api-for-gemini-nano`
-- **Edge**: Dev/Canary 138.0.3309.2+ with flag enabled: `edge://flags/#prompt-api-for-phi-mini`
-- Must click "Check for Update" in `chrome://components` for Optimization Guide
+### Models Available
+- **Chrome**: Gemini Nano (optimized for browser)
+- **Edge**: Phi Mini (Microsoft's model)
 
-### UI Implications
-- **No model selector dropdown** (Chrome handles model automatically)
-- **Header displays**: "● Chrome Built-in AI (Gemini Nano)" or "● Edge Built-in AI (Phi Mini)"
-- **Settings show**: "Chrome/Edge manages built-in AI models automatically"
-- **No manual cache management** (browser handles lifecycle)
+### Requirements
+- Chrome 128+ or Edge Dev 138.0.3309.2+
+- Enable feature flag:
+  - Chrome: `chrome://flags/#prompt-api-for-gemini-nano`
+  - Edge: `edge://flags/#prompt-api-for-phi-mini`
 
----
+### Usage in Transport
+```typescript
+const model = builtInAI()
+const result = streamText({
+  model,
+  messages: [{ role: 'user', content: prompt }]
+})
+```
 
-## Fallback Provider: WebLLM
+## WebLLM Provider
 
-### Package
-- `@built-in-ai/web-llm` from https://github.com/jakobhoeg/built-in-ai
-
-### When Used
-- Built-in AI not supported in browser
-- User manually switches to WebLLM mode
-- Built-in AI is unavailable or downloading fails
-
-### Features
-- **Manual model selection** from multiple options
-- **User-managed downloads** via browser Cache API
-- **WebGPU acceleration** with WASM fallback
-- **Works on any browser** with WebGPU/WASM support
-- **Offline after download** - Models cached locally
-- **More model variety** - Choose based on needs
+### Detection
+```typescript
+doesBrowserSupportWebLLM() → true/false
+webLLM(modelId) → model instance
+```
 
 ### Available Models
-- **Llama-3.2-1B-Instruct-q0f16-MLC** (1GB) - Highest quality
-- **SmolLM2-360M-Instruct** (360MB) - Balanced
-- **SmolLM2-135M-Instruct** (135MB) - Fast, lightweight
-- **Qwen2.5-0.5B-Instruct** (500MB) - Better quality
-- **SmolVLM-256M-Instruct** (256MB) - Vision/multimodal
+- `Llama-3.2-1B-Instruct-q4f16_1-MLC` (1GB)
+- `SmolLM2-360M-Instruct` (360MB)
+- `SmolLM2-135M-Instruct` (135MB)
+- `Qwen2.5-0.5B-Instruct` (500MB)
 
-### Usage
-```javascript
-import { webLLM } from '@built-in-ai/web-llm';
+### Current Model Used
+`Llama-3.2-1B-Instruct-q4f16_1-MLC` - Best performance/size tradeoff
 
-const model = webLLM('Llama-3.2-1B-Instruct-q0f16-MLC', {
-  worker: new Worker(new URL('./transformers-worker.ts', import.meta.url), { 
-    type: 'module' 
-  })
-});
+### Requirements
+- WebGPU or WASM support
+- Browser local storage for caching
+- No external internet connection after first download
 
-const availability = await model.availability();
-if (availability === 'downloadable') {
-  await model.createSessionWithProgress(({ progress }) => {
-    console.log(`Download: ${Math.round(progress * 100)}%`);
-  });
-}
+### Usage in Transport
+```typescript
+const model = webLLM('Llama-3.2-1B-Instruct-q4f16_1-MLC', {
+  worker: new Worker('./transformers-worker.ts')
+})
+const result = streamText({
+  model,
+  messages: [{ role: 'user', content: prompt }]
+})
 ```
 
-### UI Implications
-- **Model selector dropdown** appears in input area
-- **Header displays**: "● Llama-3.2-1B-Instruct" (or selected model name)
-- **Settings provide**: Full cache management (view, delete, clear all)
-- **Storage usage shown**: Total size, per-model size, last used dates
+## ClientSideChatTransport Implementation
 
----
+### Initialization
+```typescript
+transport = new ClientSideChatTransport('auto')
+// 'auto' | 'built-in-ai' | 'web-llm'
+```
 
-## Detection & Fallback Logic
+### Provider Detection Flow
+```
+1. Check if user has preference set
+   ├─ Yes: Use preferred provider if available, fallback to detect
+   └─ No: Auto-detect
 
-### Automatic Provider Detection
-```javascript
-// On extension startup
-if (doesBrowserSupportBuiltInAI()) {
-  const model = builtInAI();
-  const status = await model.availability();
-  
-  if (status === 'available' || status === 'downloadable') {
-    // Use Chrome Built-in AI
-    setProvider('built-in-ai');
-  } else {
-    // Fall back to WebLLM
-    setProvider('web-llm');
+2. Auto-detection:
+   ├─ Check Built-in AI availability
+   │  ├─ Available → Use Built-in AI
+   │  └─ Unavailable → Check WebLLM
+   ├─ Check WebLLM availability
+   │  ├─ Available → Use WebLLM
+   │  └─ Not available → Error
+```
+
+### Key Methods
+
+#### sendMessages()
+- Handles standard chat messages
+- Uses detected provider
+- Returns streaming response
+- Supports model download progress
+
+#### summarizeText()
+- Direct summarization without chat UI
+- Returns complete text
+- Useful for non-interactive summaries
+
+#### streamSummary()
+- Streaming summarization with callback
+- Calls `onChunk` for each text delta
+- Ideal for typed animation in UI
+
+#### setPreferredProvider()
+- Allows user to switch providers
+- Resets detection on change
+- Clears WebLLM model cache
+
+#### onProviderChange()
+- Callback when provider changes
+- Used to update UI indicators
+
+## Streaming Mechanism
+
+### Built-in AI Streaming
+```typescript
+const result = streamText({ model, messages })
+const stream = result.toUIMessageStream()
+const reader = stream.getReader()
+
+while (true) {
+  const { done, value } = await reader.read()
+  if (done) break
+  if (value.type === 'text-delta') {
+    console.log(value.delta) // Character chunk
   }
-} else {
-  // Browser doesn't support, use WebLLM
-  setProvider('web-llm');
 }
 ```
 
-### User Preference
-- Store active provider in Chrome storage
-- Allow manual switching in settings
-- Remember user's choice across sessions
+### WebLLM Streaming
+- Same interface as Built-in AI
+- Runs in Web Worker via transformers.js
+- Slightly slower but works offline
 
----
+## Download Progress Tracking
 
-## Vercel AI SDK Integration
+### Built-in AI Download
+- Chrome manages the download
+- Progress callback: `model.createSessionWithProgress(callback)`
+- Callback receives progress (0-1)
 
-Both providers integrate seamlessly with Vercel AI SDK:
+### WebLLM Download
+- First model use triggers download
+- Progress available during download
+- Cached locally for future use
 
-```javascript
-import { streamText } from 'ai';
-import { builtInAI } from '@built-in-ai/core';
-import { webLLM } from '@built-in-ai/web-llm';
+## Page Summarization Integration
 
-// Built-in AI
-const result = streamText({
-  model: builtInAI(),
-  messages: [{ role: 'user', content: 'Hello!' }]
-});
+### Content Flow
+1. Page content extracted (max 8000 chars)
+2. Prompt created with content embedded
+3. `transport.streamSummary()` called with prompt
+4. UI receives chunks and updates message
+5. Typing animation plays as text arrives
 
-// WebLLM
-const result = streamText({
-  model: webLLM('Llama-3.2-1B-Instruct-q0f16-MLC'),
-  messages: [{ role: 'user', content: 'Hello!' }]
-});
+### Prompt Structure for Summarization
+```
+Please provide a concise summary of the following web page:
 
-// Same streaming API for both!
-for await (const chunk of result.textStream) {
-  console.log(chunk);
+Title: {page_title}
+URL: {page_url}
+Author: {byline if available}
+Content:
+{page_content_truncated}
+
+Provide a clear, well-structured summary...
+```
+
+### Response Streaming
+- Each text chunk triggers callback
+- UI accumulates chunks into message
+- Animation continues until stream ends
+- User can see generation in real-time
+
+## Error Handling
+
+### Detection Errors
+- No provider available → Show warning
+- User alerted via modal dialog
+- Console errors logged
+
+### Runtime Errors
+- Stream errors caught and logged
+- User-friendly error message shown
+- Original message preserved
+
+### Provider Switching Errors
+- If preferred provider fails → Fall back to other
+- Reset and re-detect on next message
+
+## Performance Considerations
+
+### Built-in AI
+- **Pros**: Fastest, managed by browser, optimal hardware use
+- **Cons**: Browser version dependent, may not be available
+
+### WebLLM
+- **Pros**: Works offline, user control, open source models
+- **Cons**: Slower, larger model sizes, manual cache management
+
+### Streaming Benefits
+- Real-time feedback to user
+- Typing animation appears smooth
+- No waiting for full response
+- Better perceived performance
+
+## Type System
+
+### UIMessage Union Type
+```typescript
+type UIMessage = BuiltInAIUIMessage | WebLLMUIMessage
+
+// Both have:
+// - id: string
+// - role: 'user' | 'assistant'
+// - parts: Array<{ type: 'text'; text: string }>
+```
+
+### ModelMessage Format
+```typescript
+type ModelMessage = {
+  role: 'user' | 'assistant'
+  content: string
 }
 ```
 
----
+## Debugging
 
-## Comparison Table
+### Enable Detailed Logging
+All transport methods log to console with `[ClientSideChatTransport]` prefix:
+- Provider detection steps
+- Stream start/end
+- Chunk arrivals
+- Error details
 
-| Feature | Built-in AI | WebLLM |
-|---------|-------------|--------|
-| **Model Selection** | Automatic (Chrome) | Manual (user chooses) |
-| **Download Size** | Managed by Chrome | 135MB - 1GB+ per model |
-| **Download Frequency** | Once per browser | Per model, per user |
-| **Cache Management** | Automatic (Chrome) | Manual (user controls) |
-| **Browser Support** | Chrome 128+, Edge Dev | Any modern browser |
-| **Setup Required** | Enable flag, update components | None (works out of box) |
-| **Inference Speed** | Fastest (native) | Fast (WebGPU) or Medium (WASM) |
-| **Offline** | Yes (after first use) | Yes (after download) |
-| **Model Updates** | Automatic (Chrome) | Manual (re-download) |
-| **Model Variety** | 1 model (Gemini Nano/Phi Mini) | Many models to choose from |
+### Monitor Provider Changes
+```typescript
+transport.onProviderChange((provider) => {
+  console.log('Now using:', provider)
+})
+```
 
----
-
-## Implementation Priority
-
-1. **First**: Implement Built-in AI provider (best UX when available)
-2. **Second**: Implement WebLLM fallback (compatibility)
-3. **Third**: Add manual provider switching in settings
-4. **Fourth**: Optimize UI for each provider mode
-
----
-
-## User Notifications
-
-### First Time Setup
-
-**Built-in AI Available**:
-- "This extension uses Chrome's built-in AI (Gemini Nano)"
-- "Click 'Start' to download the model (one-time, ~500MB)"
-- Show progress bar during Chrome's download
-
-**Built-in AI Unavailable**:
-- "Chrome's built-in AI is not available"
-- "Using WebLLM instead (local AI models)"
-- "Choose a model to download (135MB - 1GB)"
-
-### Status Messages
-- Built-in AI: "● Chrome Built-in AI (Ready)"
-- WebLLM: "● Llama-3.2-1B-Instruct (Ready)"
-- Downloading: "⏳ Downloading model... 45%"
-- Error: "⚠️ [Provider] unavailable, switching to fallback"
+### Check Active Provider
+```typescript
+const current = transport.getActiveProvider()
+// Returns: 'built-in-ai' | 'web-llm' | null
+```

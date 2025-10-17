@@ -1,267 +1,352 @@
 # Codebase Structure
 
-## Root Directory Layout
+## Directory Layout
 
 ```
 chrome-extension/
-├── public/                    # Static assets
-│   ├── manifest.json         # Chrome extension manifest (Manifest V3)
-│   └── icons/                # Extension icons (16x16, 48x48, 128x128)
-├── src/                      # Source code
-│   ├── App.tsx              # Main sidebar container component
-│   ├── main.tsx             # React entry point
-│   ├── background.ts        # Background service worker
-│   ├── index.css            # Global styles (Tailwind directives)
-│   ├── App.css              # App-specific styles
-│   ├── vite-env.d.ts        # Vite type declarations
-│   ├── assets/              # Component-scoped assets
-│   ├── components/          # React components
-│   ├── hooks/               # Custom React hooks
-│   └── lib/                 # Utility libraries
-├── components.json          # shadcn/ui configuration
-├── eslint.config.js         # ESLint flat config
-├── jsconfig.json            # JavaScript configuration
-├── package.json             # Dependencies and scripts
-├── PRD.md                   # Product Requirements Document
-├── README.md                # Project documentation
-├── TASKS.md                 # Detailed implementation tasks (30 tasks)
-├── tsconfig.json            # TypeScript configuration (main)
-├── tsconfig.app.json        # TypeScript config for React app
-├── tsconfig.node.json       # TypeScript config for Node.js scripts
-└── vite.config.ts           # Vite build configuration
+├── .eslintrc.js              # ESLint configuration
+├── .gitignore                # Git ignore rules
+├── components.json           # shadcn/ui config
+├── eslint.config.js          # ESLint config (alternative)
+├── index.html                # Main HTML (sidebar entry point)
+├── jsconfig.json             # JS config
+├── package.json              # Dependencies and scripts
+├── PRD.md                    # Product requirements document
+├── README.md                 # Project readme
+├── TASKS.md                  # Task list and timeline
+├── tsconfig.json             # TypeScript main config
+├── tsconfig.app.json         # TypeScript app config (strict mode)
+├── tsconfig.node.json        # TypeScript Node config
+├── vite.config.ts            # Vite build configuration
+│
+├── public/                   # Static files
+│   ├── manifest.json         # Chrome extension manifest
+│   └── icons/
+│       ├── icon16.png        # 16x16 icon
+│       ├── icon48.png        # 48x48 icon
+│       └── icon128.png       # 128x128 icon
+│
+├── src/
+│   ├── App.tsx               # Main app component with summarization
+│   ├── App.css               # Main styles
+│   ├── background.ts         # Background service worker
+│   ├── content.ts            # Content script (page extraction)
+│   ├── main.tsx              # React entry point
+│   ├── index.css             # Global styles
+│   ├── vite-env.d.ts         # Vite type definitions
+│   ├── transformers-worker.ts # Web Worker for transformers.js
+│   │
+│   ├── assets/               # Images and static assets
+│   │
+│   ├── components/
+│   │   └── ui/               # UI components
+│   │       ├── audio-visualizer.tsx       # Audio visualization
+│   │       ├── button.tsx                 # Button component
+│   │       ├── chat.tsx                   # Chat container
+│   │       ├── chat-message.tsx           # Message display
+│   │       ├── collapsible.tsx            # Collapsible sections
+│   │       ├── copy-button.tsx            # Copy to clipboard
+│   │       ├── file-preview.tsx           # File preview
+│   │       ├── interrupt-prompt.tsx       # Interrupt UI
+│   │       ├── markdown-renderer.tsx      # Markdown to HTML
+│   │       ├── message-input.tsx          # Input component
+│   │       ├── message-list.tsx           # Message list with scroll
+│   │       ├── model-loading-indicator.tsx # Loading states
+│   │       ├── prompt-suggestions.tsx    # Prompt suggestions
+│   │       ├── provider-selector.tsx      # Provider dropdown
+│   │       ├── sonner.tsx                 # Toast notifications
+│   │       └── typing-indicator.tsx       # Typing animation
+│   │
+│   ├── hooks/                # Custom React hooks
+│   │   ├── use-audio-recording.ts         # Audio recording
+│   │   ├── use-auto-scroll.ts             # Auto-scroll chat
+│   │   ├── use-autosize-textarea.ts       # Textarea resize
+│   │   ├── use-copy-to-clipboard.ts       # Copy handler
+│   │   └── use-provider-context.tsx       # Provider context
+│   │
+│   └── lib/                  # Utility libraries
+│       ├── audio-utils.ts                 # Audio utilities
+│       ├── client-side-chat-transport.ts  # AI transport with streaming
+│       └── utils.ts                       # General utilities (cn, etc)
+│
+└── dist/                     # Built output (generated)
+    ├── index.html
+    ├── background.js
+    ├── content.js
+    └── assets/
 ```
 
-## Source Code Organization
+## Key Files Detail
 
-### `/src` - Main Source Directory
+### src/App.tsx
+- **Main Component**: Sidebar container and chat interface
+- **Responsibilities**:
+  - Provider detection and switching
+  - Chat message handling
+  - Page summarization request handler
+  - Message streaming and display
+- **Key Features**:
+  - `detectActiveProvider()` - Detect which AI provider to use
+  - Chat state management with useChat hook
+  - `handleMessage()` - Handles summarization requests from background
+  - `transport.streamSummary()` - Gets AI summary with streaming
+  - Auto-clear chat on new summarization
 
-#### Core Files
-- **`App.tsx`**: Main sidebar container component
-  - Responsive layout (400px - 100% width)
-  - Fixed header with status indicator
-  - Scrollable chat area
-  - Fixed input area
-  - Reset button functionality
-  - Built-in AI detection and warning messages
+### src/background.ts
+- **Context Menu Creation**: Creates "Summarize this page" option
+- **Message Routing**: Routes between content script and sidebar
+- **Responsibilities**:
+  - `chrome.runtime.onInstalled` - Create context menu
+  - `chrome.contextMenus.onClicked` - Handle menu clicks
+  - Content script communication via `chrome.tabs.sendMessage()`
+  - Sidebar communication via `chrome.runtime.sendMessage()`
 
-- **`main.tsx`**: React entry point
-  - Mounts App component to `#root`
-  - Imports global styles
+### src/content.ts
+- **Page Content Extraction**: Uses @mozilla/readability
+- **Responsibilities**:
+  - `chrome.runtime.onMessage` listener
+  - Parse article content from DOM
+  - Fallback extraction if Readability fails
+  - Return structured data (title, content, byline, etc)
+- **Data Extracted**:
+  - `title` - Article title
+  - `content` - Main article text
+  - `excerpt` - Brief excerpt
+  - `byline` - Author name if available
+  - `siteName` - Website name
+  - `url` - Page URL
 
-- **`background.ts`**: Chrome extension background service worker
-  - Handles extension lifecycle
-  - Side panel management
+### src/lib/client-side-chat-transport.ts
+- **Custom AI Transport**: Implements dual-provider streaming
+- **Key Methods**:
+  - `sendMessages()` - Standard chat message handling
+  - `summarizeText()` - Full text summarization (returns complete)
+  - `streamSummary()` - Streaming summarization (callback per chunk)
+  - `selectProvider()` - Choose Built-in AI or WebLLM
+  - `getActiveProvider()` - Get current provider
+  - `setPreferredProvider()` - Switch provider
+  - `onProviderChange()` - Subscribe to provider changes
+- **Implementation**:
+  - Uses `streamText()` from Vercel AI SDK
+  - Converts to `UIMessageStream` for consumption
+  - Handles both Built-in AI and WebLLM
 
-### `/src/components/ui` - UI Components
+### src/components/ui/chat.tsx
+- **Main Chat Component**: Container for messages and input
+- **Props**:
+  - `messages` - Array of chat messages
+  - `input` - Current input text
+  - `handleInputChange` - Input change handler
+  - `handleSubmit` - Submit message handler
+  - `isGenerating` - Loading state
+  - `stop` - Abort generation
+  - `append` - Add message directly
 
-All components follow shadcn/ui patterns with Tailwind CSS styling:
+### src/components/ui/chat-message.tsx
+- **Message Display**: Renders user and assistant messages
+- **Features**:
+  - Markdown rendering with syntax highlighting
+  - Code copy buttons
+  - Different styling for user/assistant
+  - Animations on message appear
 
-#### Chat Components (✅ Implemented)
-- **`chat.tsx`**: Main chat container with provider/children pattern
-- **`chat-message.tsx`**: Individual message display (user/AI)
-- **`message-list.tsx`**: Scrollable message container
-- **`message-input.tsx`**: Auto-resizing textarea with submit button
-- **`typing-indicator.tsx`**: Bouncing dots animation for AI responses
-- **`markdown-renderer.tsx`**: Markdown parsing with highlight.js syntax highlighting
+### src/components/ui/markdown-renderer.tsx
+- **Markdown to HTML**: Converts markdown content
+- **Features**:
+  - Syntax highlighting with highlight.js
+  - Code block styling
+  - Link handling
+  - Table support (GitHub flavored markdown)
+- **Languages Supported**:
+  - JavaScript, TypeScript
+  - Python, Bash
+  - JSON
 
-#### Utility Components
-- **`button.tsx`**: Base button component (shadcn/ui)
-- **`collapsible.tsx`**: Collapsible sections (for reasoning/sources)
-- **`copy-button.tsx`**: Copy to clipboard functionality (exists, needs wiring)
-- **`sonner.tsx`**: Toast notification system
+### src/components/ui/typing-indicator.tsx
+- **Animated Typing**: Shows AI is generating
+- **Animation**: Bouncing dots with smooth motion
 
-#### Future Components (⏳ Exist but not yet used)
-- **`audio-visualizer.tsx`**: Waveform display for voice input
-- **`file-preview.tsx`**: File attachment preview
-- **`interrupt-prompt.tsx`**: Stop generation prompt
-- **`prompt-suggestions.tsx`**: Example prompt cards for empty state
+### public/manifest.json
+- **Chrome Extension Manifest**:
+  - `version` - Current version
+  - `permissions` - Requested permissions:
+    - `storage` - Local storage
+    - `sidePanel` - Sidebar panel
+    - `contextMenus` - Right-click menu
+    - `activeTab` - Current tab info
+    - `scripting` - Inject scripts
+  - `content_scripts` - Load content.ts on all pages
+  - `background` - Load background.ts
 
-### `/src/hooks` - Custom React Hooks
+### vite.config.ts
+- **Build Configuration**:
+  - Multiple entry points:
+    - `main` → `index.html` (React app)
+    - `background` → `src/background.ts`
+    - `content` → `src/content.ts`
+  - Output configuration:
+    - Main app → `assets/main-*.js`
+    - Background → `background.js`
+    - Content → `content.js`
 
-- **`use-auto-scroll.ts`**: Auto-scroll to bottom during streaming (✅ in use)
-- **`use-autosize-textarea.ts`**: Auto-resize textarea based on content (✅ in use)
-- **`use-copy-to-clipboard.ts`**: Copy text to clipboard helper (✅ in use)
-- **`use-audio-recording.ts`**: Audio recording for voice input (⏳ planned)
+## Component Tree
 
-### `/src/lib` - Utility Libraries
-
-- **`utils.ts`**: Utility functions (className merging with `clsx` and `tailwind-merge`)
-- **`client-side-chat-transport.ts`**: Custom transport for useChat hook (✅ implemented)
-  - `ClientSideChatTransport` class implementing `ChatTransport<BuiltInAIUIMessage>`
-  - `sendMessages()` with download progress tracking
-  - Stream merging with `writer.merge(result.toUIMessageStream())`
-  - Error handling and user notifications
-- **`audio-utils.ts`**: Audio processing utilities (⏳ planned for voice input)
-
-## Configuration Files
-
-### TypeScript Configuration
-- **`tsconfig.json`**: Main config, references app and node configs
-- **`tsconfig.app.json`**: React app config with `jsx: "react-jsx"`, strict mode
-- **`tsconfig.node.json`**: Node.js scripts config (Vite, etc.)
-- **`jsconfig.json`**: JavaScript fallback configuration
-
-### Build & Linting
-- **`vite.config.ts`**: Vite configuration
-  - Multiple entry points: sidebar (`index.html`) + background worker (`background.ts`)
-  - Output to `dist/` directory
-  - Chrome extension build optimizations
-- **`eslint.config.js`**: ESLint flat config
-  - TypeScript support
-  - React hooks and refresh plugins
-  - Ignores dist/ and uppercase unused variables
-
-### UI Framework
-- **`components.json`**: shadcn/ui configuration
-  - Component installation paths
-  - Style configuration
-  - Alias paths
-
-### Chrome Extension
-- **`public/manifest.json`**: Manifest V3 configuration
-  - Side panel API
-  - Permissions: `storage`, `sidePanel`
-  - Content Security Policy: `wasm-unsafe-eval` for WebGPU
-  - Background service worker reference
-
-## Import Patterns
-
-### Relative Imports (Local Files)
-```typescript
-import App from './App'
-import { Chat } from './components/ui/chat'
-import { useAutoScroll } from './hooks/use-auto-scroll'
-import { cn } from './lib/utils'
 ```
-
-### Absolute Imports (Public Assets)
-```typescript
-import viteLogo from '/vite.svg'
+<App>
+  ├── Header (status, provider selector, reset)
+  ├── <Chat>
+  │   ├── <MessageList>
+  │   │   ├── <ChatMessage> (user)
+  │   │   │   └── <MarkdownRenderer>
+  │   │   ├── <ChatMessage> (assistant)
+  │   │   │   ├── <MarkdownRenderer>
+  │   │   │   ├── <CopyButton>
+  │   │   │   └── <TypingIndicator> (while streaming)
+  │   │   └── ... more messages
+  │   │
+  │   ├── <MessageInput>
+  │   │   ├── textarea with auto-resize
+  │   │   ├── model selector (WebLLM only)
+  │   │   └── submit button
+  │   │
+  │   └── Suggestions (empty state)
+  │
+  └── Modals
+      └── Various dialogs (error, settings, etc)
 ```
-
-### External Packages
-```typescript
-import { useChat } from '@ai-sdk/react'
-import { builtInAI, doesBrowserSupportBuiltInAI } from '@built-in-ai/core'
-import { transformersJS } from '@built-in-ai/transformers-js'
-```
-
-## Component Conventions
-
-All React components follow these patterns:
-
-1. **Functional Components**: Use function declarations (not arrow functions)
-2. **Hooks**: useState, useEffect, custom hooks at top of component
-3. **Default Export**: Always export default for page-level components
-4. **Named Exports**: For utility components and types
-5. **TypeScript**: Explicit types for props, state, and function parameters
-6. **File Extension**: `.tsx` for components, `.ts` for utilities
-
-Example:
-```typescript
-interface ChatProps {
-  messages: Message[];
-  onSend: (message: string) => void;
-}
-
-export default function Chat({ messages, onSend }: ChatProps) {
-  const [input, setInput] = useState<string>('');
-  
-  return (
-    <div className="flex flex-col h-full">
-      {/* Component JSX */}
-    </div>
-  );
-}
-```
-
-## Styling Approach
-
-- **Tailwind CSS**: Utility-first classes for all styling
-- **CSS Modules**: `App.css` for app-specific styles
-- **Global Styles**: `index.css` contains Tailwind directives
-- **Dark Mode**: Supported via Tailwind's dark mode classes
-- **Component Variants**: Using `class-variance-authority` (cva) for component variations
 
 ## Data Flow
 
-### Current Architecture (Client-Side Only)
+### Chat Message Flow
 ```
-User Input → ClientSideChatTransport → Built-in AI Model → Stream → UI Update
+User types and submits
+    ↓
+App.handleSubmit()
+    ↓
+setInput('') - Clear input
+    ↓
+sendMessage({ text: input })
+    ↓
+transport.sendMessages()
+    ↓
+AI Provider (Built-in AI or WebLLM)
+    ↓
+streamText() → toUIMessageStream()
+    ↓
+Chunks received → Update UI
+    ↓
+Message rendered with markdown
 ```
 
-### State Management
-- **Local State**: useState for component-level state
-- **Chrome Storage**: For persistence (chat history, settings)
-- **No Global State**: No Redux/Zustand yet (not needed for MVP)
+### Page Summarization Flow
+```
+Background context menu click
+    ↓
+background.ts: chrome.contextMenus.onClicked
+    ↓
+Send message to content script
+    ↓
+content.ts: Extract page with @mozilla/readability
+    ↓
+Return structured data to background
+    ↓
+background.ts: Send to sidebar via chrome.runtime.sendMessage()
+    ↓
+App.tsx: handleMessage() receives data
+    ↓
+Clear existing messages
+    ↓
+Show user message with title and URL
+    ↓
+transport.streamSummary(prompt)
+    ↓
+Callback receives chunks
+    ↓
+Update AI message with accumulated text
+    ↓
+Typing animation plays as text arrives
+```
 
-### Message Flow
-1. User types in MessageInput
-2. Submit triggers useChat's append() or sendMessage()
-3. ClientSideChatTransport.sendMessages() is called
-4. Built-in AI processes and streams response
-5. result.toUIMessageStream() merged into writer
-6. UI updates reactively via useChat state
-7. TypeScript types ensure type safety throughout
+## Type Definitions
 
-## Build Output
+### Message Type
+```typescript
+type UIMessage = BuiltInAIUIMessage | WebLLMUIMessage
+
+interface UIMessage {
+  id: string
+  role: 'user' | 'assistant'
+  parts: Array<{ type: 'text'; text: string }>
+}
+```
+
+### Chat Message (Component)
+```typescript
+interface Message {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+}
+```
+
+### Page Content (from content.ts)
+```typescript
+interface PageContent {
+  title: string
+  content: string
+  excerpt: string
+  byline: string
+  siteName: string
+  url: string
+}
+```
+
+## Build Output Structure
 
 ```
 dist/
-├── index.html           # Sidebar HTML
-├── background.js        # Background service worker
-├── assets/              # Bundled JS/CSS
-│   ├── index-[hash].js
-│   └── index-[hash].css
-└── icons/               # Extension icons (copied from public/)
+├── index.html (380 bytes)
+│   └── Loads main-*.js and main-*.css
+│
+├── background.js (990 bytes)
+│   └── Background service worker (minimal)
+│
+├── content.js (35KB gzipped)
+│   └── Content script with @mozilla/readability
+│
+└── assets/
+    ├── main-*.js (2.2MB gzipped)
+    │   └── React app with all UI
+    │
+    ├── main-*.css (8.5KB gzipped)
+    │   └── All styles (Tailwind + custom)
+    │
+    └── transformers-worker-*.js (5.5MB)
+        └── AI models and transformers.js
 ```
 
-## Dependencies Overview
+## Module Count Breakdown
 
-### Core Dependencies
-- `react@^19`, `react-dom@^19`
-- `ai@^4.1.10` (Vercel AI SDK)
-- `@ai-sdk/react@^1.0.19` (useChat hook)
-- `@built-in-ai/core@^0.1.21` (Chrome Built-in AI)
-- `@built-in-ai/transformers-js@^0.1.21` (Transformers.js fallback)
+- **Main app**: ~2,663 modules
+- Largest modules:
+  - AI SDK and providers
+  - React and dependencies
+  - Markdown rendering
+  - @mozilla/readability (~330 modules saved by switching from shiki)
 
-### UI Dependencies
-- `tailwindcss@^4.1.5`
-- `tailwind-merge@^2.7.2`, `clsx@^2.1.1`
-- `class-variance-authority@^0.7.1`
-- `lucide-react@^0.468.0` (icons)
-- `sonner@^1.7.2` (toast notifications)
+## Key Configuration Files
 
-### Development Dependencies
-- `vite@^7.0.4`
-- `typescript@~5.6.2`
-- `@types/react@^19.0.11`, `@types/react-dom@^19.0.3`
-- `eslint@^9.17.0`
-- `@vitejs/plugin-react@^4.3.4`
+### tsconfig.app.json
+- `jsx: "react-jsx"` - JSX transform
+- `strict: true` - Strict type checking
+- `moduleResolution: "bundler"`
 
-## File Naming Conventions
+### vite.config.ts
+- Plugin: React, Tailwind
+- Build optimization for multiple outputs
+- CSS processing with PostCSS
 
-- **Components**: `kebab-case.tsx` (e.g., `chat-message.tsx`)
-- **Hooks**: `use-kebab-case.ts` (e.g., `use-auto-scroll.ts`)
-- **Utilities**: `kebab-case.ts` (e.g., `audio-utils.ts`)
-- **Types**: Co-located with components or in `.d.ts` files
-- **Config**: `kebab-case.js/ts` (e.g., `vite.config.ts`)
-
-## Git Ignore Patterns
-
-```
-node_modules/
-dist/
-*.log
-.DS_Store
-.env
-.vscode/ (except settings.json if shared)
-```
-
-## Development Workflow
-
-1. **Start Dev Server**: `npm run dev` (Vite dev server on port 5173)
-2. **Build**: `npm run build` (outputs to dist/)
-3. **Preview Build**: `npm run preview`
-4. **Lint**: `npm run lint`
-5. **Load Extension**: Chrome → Extensions → Load unpacked → select `dist/` folder
+### tailwind.config.js
+- Custom theme variables
+- Component classes
+- Extend with custom utilities
