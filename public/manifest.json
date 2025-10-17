@@ -8,7 +8,7 @@
     "sidePanel"
   ],
   "content_security_policy": {
-    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';"
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' https://cdn.jsdelivr.net https://huggingface.co https://huggingface-cdn-a.hf.space https://*.huggingface.co; object-src 'self';"
   },
   "side_panel": {
     "default_path": "index.html"

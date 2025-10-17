@@ -35,6 +35,7 @@ interface ChatPropsBase {
   ) => void
   setMessages?: (messages: any[]) => void
   transcribeAudio?: (blob: Blob) => Promise<string>
+  showLoadingStatus?: boolean
 }
 
 interface ChatPropsWithoutSuggestions extends ChatPropsBase {
@@ -62,10 +63,14 @@ export function Chat({
   onRateResponse,
   setMessages,
   transcribeAudio,
+  showLoadingStatus = false,
 }: ChatProps) {
   const lastMessage = messages[messages.length - 1]
   const isEmpty = messages.length === 0
-  const isTyping = isGenerating && lastMessage?.role === "user"
+  // Show typing indicator when:
+  // 1. AI is generating AND last message is from user
+  // 2. OR when status is submitted (before first streaming chunk arrives)
+  const isTyping = isGenerating && (lastMessage?.role === "user" || !lastMessage)
 
   const messagesRef = useRef(messages)
   messagesRef.current = messages
@@ -209,6 +214,14 @@ export function Chat({
             isTyping={isTyping}
             messageOptions={messageOptions}
           />
+          {showLoadingStatus && isGenerating && (
+            <div className="px-3 py-2 text-xs text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <div className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
+                Loading model...
+              </div>
+            </div>
+          )}
         </ChatMessages>
       ) : null}
 
