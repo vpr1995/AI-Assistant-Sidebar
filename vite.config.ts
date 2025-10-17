@@ -17,7 +17,13 @@ export default defineConfig({
         // include the content script so Vite bundles it and outputs to dist/content.js
         content: path.resolve(__dirname, 'src/content.ts'),
       },
-      external: ['@mozilla/readability'],
+      external: (id) => {
+        // Only externalize @mozilla/readability for the main app, not for content script
+        if (id === '@mozilla/readability') {
+          return false; // Bundle it in content.js
+        }
+        return false;
+      },
       output: {
         entryFileNames: (chunkInfo) => {
           // Ensure background.ts outputs as background.js and content.ts as content.js
