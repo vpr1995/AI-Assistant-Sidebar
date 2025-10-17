@@ -74,6 +74,7 @@ export class ClientSideChatTransport implements ChatTransport<UIMessage> {
   private preferredProvider: 'built-in-ai' | 'web-llm' | 'auto' = 'auto'
   private cachedWebLLMModel: ReturnType<typeof webLLM> | null = null
   private webLLMModelInitializing: Promise<void> | null = null
+  private providerChangeCallback: ((provider: 'built-in-ai' | 'web-llm') => void) | null = null
   private static hasLoggedInitialization = false
 
   constructor(preferredProvider: 'built-in-ai' | 'web-llm' | 'auto' = 'auto') {
@@ -102,6 +103,10 @@ export class ClientSideChatTransport implements ChatTransport<UIMessage> {
       console.log('[ClientSideChatTransport] First message, detecting provider...')
       this.provider = await this.selectProvider()
       console.log('[ClientSideChatTransport] Provider selected:', this.provider)
+      // Notify about the provider change
+      if (this.providerChangeCallback) {
+        this.providerChangeCallback(this.provider)
+      }
     } else {
       console.log('[ClientSideChatTransport] Using previously detected provider:', this.provider)
     }
@@ -178,6 +183,22 @@ export class ClientSideChatTransport implements ChatTransport<UIMessage> {
     this.cachedWebLLMModel = null
     this.webLLMModelInitializing = null
     console.log('[ClientSideChatTransport] Provider detection will be re-run on next message')
+  }
+
+  /**
+   * Get the currently active provider
+   * Returns the provider that will be used for the next message
+   * If not yet determined, returns null
+   */
+  getActiveProvider(): 'built-in-ai' | 'web-llm' | null {
+    return this.provider
+  }
+
+  /**
+   * Set a callback to be called when the active provider is determined or changes
+   */
+  onProviderChange(callback: (provider: 'built-in-ai' | 'web-llm') => void): void {
+    this.providerChangeCallback = callback
   }
 
   private async handleBuiltInAI(

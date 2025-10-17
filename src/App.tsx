@@ -91,6 +91,12 @@ function App() {
     console.log('[App] Component mounted, detecting provider...')
     setIsClient(true)
     
+    // Set up callback to track provider changes
+    transport.onProviderChange((provider) => {
+      console.log('[App] Provider changed to:', provider)
+      setActiveProvider(provider)
+    })
+    
     // Initialize available providers
     const checkAvailableProviders = async () => {
       const available: ('built-in-ai' | 'web-llm')[] = []
@@ -123,7 +129,7 @@ function App() {
         setActiveProvider(provider)
       })
     })
-  }, [])
+  }, [transport])
 
   // Update transport's preferred provider when it changes
   useEffect(() => {
