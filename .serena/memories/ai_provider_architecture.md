@@ -51,14 +51,14 @@ if (doesBrowserSupportBuiltInAI()) {
 
 ---
 
-## Fallback Provider: Transformers.js
+## Fallback Provider: WebLLM
 
 ### Package
-- `@built-in-ai/transformers-js` from https://github.com/jakobhoeg/built-in-ai
+- `@built-in-ai/web-llm` from https://github.com/jakobhoeg/built-in-ai
 
 ### When Used
 - Built-in AI not supported in browser
-- User manually switches to Transformers.js mode
+- User manually switches to WebLLM mode
 - Built-in AI is unavailable or downloading fails
 
 ### Features
@@ -70,19 +70,20 @@ if (doesBrowserSupportBuiltInAI()) {
 - **More model variety** - Choose based on needs
 
 ### Available Models
+- **Llama-3.2-1B-Instruct-q0f16-MLC** (1GB) - Highest quality
 - **SmolLM2-360M-Instruct** (360MB) - Balanced
 - **SmolLM2-135M-Instruct** (135MB) - Fast, lightweight
 - **Qwen2.5-0.5B-Instruct** (500MB) - Better quality
-- **Llama-3.2-1B-Instruct** (1GB) - Highest quality
 - **SmolVLM-256M-Instruct** (256MB) - Vision/multimodal
 
 ### Usage
 ```javascript
-import { transformersJS } from '@built-in-ai/transformers-js';
+import { webLLM } from '@built-in-ai/web-llm';
 
-const model = transformersJS('HuggingFaceTB/SmolLM2-360M-Instruct', {
-  device: 'webgpu', // or 'wasm'
-  worker: new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' })
+const model = webLLM('Llama-3.2-1B-Instruct-q0f16-MLC', {
+  worker: new Worker(new URL('./transformers-worker.ts', import.meta.url), { 
+    type: 'module' 
+  })
 });
 
 const availability = await model.availability();
@@ -95,7 +96,7 @@ if (availability === 'downloadable') {
 
 ### UI Implications
 - **Model selector dropdown** appears in input area
-- **Header displays**: "● SmolLM2-360M-Instruct" (or selected model name)
+- **Header displays**: "● Llama-3.2-1B-Instruct" (or selected model name)
 - **Settings provide**: Full cache management (view, delete, clear all)
 - **Storage usage shown**: Total size, per-model size, last used dates
 
@@ -114,12 +115,12 @@ if (doesBrowserSupportBuiltInAI()) {
     // Use Chrome Built-in AI
     setProvider('built-in-ai');
   } else {
-    // Fall back to Transformers.js
-    setProvider('transformers-js');
+    // Fall back to WebLLM
+    setProvider('web-llm');
   }
 } else {
-  // Browser doesn't support, use Transformers.js
-  setProvider('transformers-js');
+  // Browser doesn't support, use WebLLM
+  setProvider('web-llm');
 }
 ```
 
@@ -137,7 +138,7 @@ Both providers integrate seamlessly with Vercel AI SDK:
 ```javascript
 import { streamText } from 'ai';
 import { builtInAI } from '@built-in-ai/core';
-import { transformersJS } from '@built-in-ai/transformers-js';
+import { webLLM } from '@built-in-ai/web-llm';
 
 // Built-in AI
 const result = streamText({
@@ -145,9 +146,9 @@ const result = streamText({
   messages: [{ role: 'user', content: 'Hello!' }]
 });
 
-// Transformers.js
+// WebLLM
 const result = streamText({
-  model: transformersJS('HuggingFaceTB/SmolLM2-360M-Instruct'),
+  model: webLLM('Llama-3.2-1B-Instruct-q0f16-MLC'),
   messages: [{ role: 'user', content: 'Hello!' }]
 });
 
@@ -161,8 +162,8 @@ for await (const chunk of result.textStream) {
 
 ## Comparison Table
 
-| Feature | Built-in AI | Transformers.js |
-|---------|-------------|-----------------|
+| Feature | Built-in AI | WebLLM |
+|---------|-------------|--------|
 | **Model Selection** | Automatic (Chrome) | Manual (user chooses) |
 | **Download Size** | Managed by Chrome | 135MB - 1GB+ per model |
 | **Download Frequency** | Once per browser | Per model, per user |
@@ -179,7 +180,7 @@ for await (const chunk of result.textStream) {
 ## Implementation Priority
 
 1. **First**: Implement Built-in AI provider (best UX when available)
-2. **Second**: Implement Transformers.js fallback (compatibility)
+2. **Second**: Implement WebLLM fallback (compatibility)
 3. **Third**: Add manual provider switching in settings
 4. **Fourth**: Optimize UI for each provider mode
 
@@ -196,11 +197,11 @@ for await (const chunk of result.textStream) {
 
 **Built-in AI Unavailable**:
 - "Chrome's built-in AI is not available"
-- "Using local AI models instead (Transformers.js)"
+- "Using WebLLM instead (local AI models)"
 - "Choose a model to download (135MB - 1GB)"
 
 ### Status Messages
 - Built-in AI: "● Chrome Built-in AI (Ready)"
-- Transformers.js: "● SmolLM2-360M-Instruct (Ready)"
+- WebLLM: "● Llama-3.2-1B-Instruct (Ready)"
 - Downloading: "⏳ Downloading model... 45%"
 - Error: "⚠️ [Provider] unavailable, switching to fallback"

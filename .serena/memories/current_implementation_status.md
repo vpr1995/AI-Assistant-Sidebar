@@ -28,17 +28,25 @@
 ### 4. AI Integration
 - Custom `ClientSideChatTransport` class
 - Built-in AI detection via `doesBrowserSupportBuiltInAI()`
+- WebLLM detection via `doesBrowserSupportWebLLM()` (✨ NEW)
 - useChat hook integration from @ai-sdk/react
 - Text streaming with `result.toUIMessageStream()`
 - Download progress tracking in transport
 - Error handling with user notifications
 - Warning message when Built-in AI unavailable
+- Fallback to WebLLM when Built-in AI unavailable (✨ NEW)
 
 ### 5. Build Configuration
 - Vite config for Chrome extension (sidebar + background worker)
 - TypeScript compilation working
 - Background service worker builds correctly
 - Development server runs without errors
+
+### 6. Provider Switching
+- ProviderSelector component with type-safe provider options
+- Support for 'built-in-ai', 'web-llm', and 'auto' modes
+- Automatic provider detection on startup
+- Manual provider switching capability
 
 ## 🔄 Partially Implemented Features
 
@@ -79,7 +87,7 @@
 
 ### Phase 5: Storage & Settings
 - Settings panel/modal
-- Cache management UI (for Transformers.js fallback)
+- Cache management UI (for WebLLM fallback)
 - Model selector dropdown (only for fallback mode)
 - Storage usage display
 - Delete cached models functionality
@@ -95,15 +103,16 @@
 
 ## 🏗️ Architecture Decisions Made
 
-### 1. AI Provider Strategy
+### 1. AI Provider Strategy (✨ UPDATED)
 - **PRIMARY**: Chrome Built-in AI (`@built-in-ai/core`)
   - No model selection UI needed
   - Chrome manages caching automatically
   - Header shows "Chrome Built-in AI (Gemini Nano)"
-- **FALLBACK**: Transformers.js (`@built-in-ai/transformers-js`)
+- **FALLBACK**: WebLLM (`@built-in-ai/web-llm`)
   - Model selector dropdown appears
   - User manages cache manually
   - Multiple models available
+  - Uses `transformers-worker.ts` for Web Worker inference
 
 ### 2. Bundle Optimization
 - Replaced shiki with highlight.js (saved 330 modules)
@@ -116,14 +125,16 @@
 - Typing indicator for AI responses
 - Responsive width for sidebar
 - Dark mode compatible (Tailwind classes)
+- Provider-aware UI (different UI for Built-in AI vs WebLLM)
 
 ## 📁 File Structure
 
 ```
 src/
-├── App.tsx                      # Main sidebar container (✅)
+├── App.tsx                      # Main sidebar container (✅ Updated for WebLLM)
 ├── main.tsx                     # React entry point (✅)
 ├── background.ts                # Background service worker (✅)
+├── transformers-worker.ts       # Web Worker for WebLLM inference (✅)
 ├── components/
 │   └── ui/
 │       ├── audio-visualizer.tsx      # (⏳ exists, not used)
@@ -138,18 +149,39 @@ src/
 │       ├── message-input.tsx         # (✅)
 │       ├── message-list.tsx          # (✅)
 │       ├── prompt-suggestions.tsx    # (⏳ exists, not used)
+│       ├── provider-selector.tsx     # (✅ Updated for WebLLM)
 │       ├── sonner.tsx                # (✅ toast notifications)
 │       └── typing-indicator.tsx      # (✅)
 ├── hooks/
 │   ├── use-audio-recording.ts        # (⏳ exists, not used)
 │   ├── use-auto-scroll.ts            # (✅)
 │   ├── use-autosize-textarea.ts      # (✅)
-│   └── use-copy-to-clipboard.ts      # (✅)
+│   ├── use-copy-to-clipboard.ts      # (✅)
+│   └── use-provider-context.tsx      # (✅ Updated for WebLLM)
 └── lib/
     ├── audio-utils.ts                # (⏳ exists, not used)
-    ├── client-side-chat-transport.ts # (✅ custom transport)
+    ├── client-side-chat-transport.ts # (✅ Updated for WebLLM)
     └── utils.ts                      # (✅ utility functions)
 ```
+
+## 🎯 Recent Changes (Transformers.js → WebLLM)
+
+**Files Updated**:
+- ✅ `src/lib/client-side-chat-transport.ts` - Switched to WebLLM, renamed methods/variables
+- ✅ `src/App.tsx` - Updated imports and provider types
+- ✅ `src/components/ui/provider-selector.tsx` - Updated labels and types
+- ✅ `src/hooks/use-provider-context.tsx` - Updated imports and types
+- ✅ `PRD.md` - Updated technology stack documentation
+- ✅ `TASKS.md` - Updated task descriptions and AI architecture
+- ✅ Memory files - Updated to reflect WebLLM usage
+
+**Key Changes**:
+- Renamed `doesBrowserSupportTransformersJS()` → `doesBrowserSupportWebLLM()`
+- Renamed `handleTransformersJS()` → `handleWebLLM()`
+- Renamed `cachedTransformersModel` → `cachedWebLLMModel`
+- Updated provider type from `'transformers-js'` → `'web-llm'`
+- Updated UI labels from "Transformers.js" → "WebLLM"
+- Updated console log messages and error messages
 
 ## 🎯 Next Steps Priority
 
@@ -171,14 +203,14 @@ src/
 ## 🐛 Known Issues
 
 1. TypeScript compilation: Clean (no errors)
-2. ESLint: Clean (no errors)
+2. ESLint: Clean (no errors, excluding pre-existing issues)
 3. Build: Successful (dist/ output works)
 4. Runtime: Extension loads but needs Chrome flag enabled for Built-in AI
 5. Bundle size: 2,651 modules (optimized from 2,981)
 
 ## 📝 Technical Debt
 
-1. Web Workers not yet implemented (models run on main thread)
+1. Web Workers not yet implemented (models run on main thread via Web Worker in transformers-worker.ts)
 2. No lazy loading for heavy components
 3. Performance optimization not done (React.memo, useCallback)
 4. Accessibility features incomplete (ARIA, keyboard nav)

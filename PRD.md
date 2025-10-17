@@ -401,7 +401,7 @@ A Chrome extension that leverages WebGPU and WebAssembly to run optimized AI mod
 ### 6.1 Technology Stack
 - **Frontend Framework**: React 19 (functional components with hooks)
 - **Build Tool**: Vite 7.x
-- **AI Runtime**: Hugging Face Transformers.js
+- **AI Runtime**: Chrome Built-in AI (primary) + WebLLM (fallback)
 - **Acceleration**: WebGPU
 - **Styling**: Tailwind CSS + shadcn/ui components
 - **State Management**: React hooks

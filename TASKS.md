@@ -70,13 +70,13 @@ This extension uses a **smart dual-provider architecture** to maximize performan
 - **Fastest inference** - Hardware-optimized by browser
 - **Requires**: Chrome 128+ or Edge Dev 138.0.3309.2+ with experimental flag enabled
 
-#### **Fallback: Transformers.js** (`@built-in-ai/transformers-js`)
+#### **Fallback: WebLLM** (`@built-in-ai/web-llm`)
 - Used when built-in AI is unavailable or not supported
 - **Manual model selection** from multiple options:
+  - Llama-3.2-1B-Instruct-q0f16-MLC (1GB)
   - SmolLM2-360M-Instruct (360MB)
   - SmolLM2-135M-Instruct (135MB)
   - Qwen2.5-0.5B-Instruct
-  - Llama-3.2-1B-Instruct
 - **User manages cache** - download, delete, clear models
 - **Works on any browser** with WebGPU/WASM support
 
@@ -88,10 +88,10 @@ This extension uses a **smart dual-provider architecture** to maximize performan
 - ✅ Header shows: "● Chrome Built-in AI (Gemini Nano)"
 - ✅ Settings show: "Chrome manages built-in AI models automatically"
 
-**When using Transformers.js Fallback**:
+**When using WebLLM Fallback**:
 - 🔽 Model selector dropdown appears in input area
 - 📥 User downloads and manages models manually
-- 🏷️ Header shows: "● SmolLM2-360M-Instruct" (or selected model)
+- 🏷️ Header shows: "● Llama-3.2-1B-Instruct" (or selected model)
 - ⚙️ Full cache management UI available in settings
 
 ### Detection Flow
@@ -102,9 +102,9 @@ This extension uses a **smart dual-provider architecture** to maximize performan
 2. If YES → Try builtInAI()
    ├─ Available → Use immediately ✅
    ├─ Downloadable → Show Chrome download progress, then use
-   └─ Unavailable → Fall back to Transformers.js
+   └─ Unavailable → Fall back to WebLLM
    ↓
-3. If NO → Use transformersJS() with model selection
+3. If NO → Use webLLM() with model selection
 ```
 
 ---
@@ -120,7 +120,7 @@ This extension uses a **smart dual-provider architecture** to maximize performan
 **Actions**:
 - ✅ Install Vercel AI SDK (`ai`)
 - ✅ Install **PRIMARY**: `@built-in-ai/core` (Chrome's built-in Gemini Nano/Phi Mini - no models to download!)
-- ✅ Install **FALLBACK**: `@built-in-ai/transformers-js` (local Transformers.js models with model selection)
+- ✅ Install **FALLBACK**: `@built-in-ai/web-llm` (WebLLM with model selection)
 - ✅ Install Tailwind CSS and configure for Vite
 - ✅ Set up TypeScript support
 - ✅ Configure Vite for Chrome extension sidebar builds
@@ -130,9 +130,9 @@ This extension uses a **smart dual-provider architecture** to maximize performan
 
 **Architecture Notes**:
 - **Primary**: Use `@built-in-ai/core` with Chrome's built-in AI (Gemini Nano in Chrome, Phi Mini in Edge)
-- **Fallback**: If built-in AI unavailable, use `@built-in-ai/transformers-js` with downloadable models
+- **Fallback**: If built-in AI unavailable, use `@built-in-ai/web-llm` with downloadable models
 - **No model selection needed** when using built-in AI (Chrome handles it automatically)
-- **Model selection UI** only shown when using Transformers.js fallback
+- **Model selection UI** only shown when using WebLLM fallback
 
 **Acceptance Criteria**:
 - [x] All dependencies installed successfully
@@ -336,16 +336,16 @@ This extension uses a **smart dual-provider architecture** to maximize performan
 **Status**: ✅ Completed  
 **Priority**: P1 (Should Have)
 
-**Description**: Create model selector dropdown (only for Transformers.js fallback mode).
+**Description**: Create model selector dropdown (only for WebLLM fallback mode).
 
 **Actions**:
 - ✅ Add dropdown to `PromptInputToolbar`
-- ✅ **Only show when using Transformers.js fallback** (hide for built-in AI)
+- ✅ **Only show when using WebLLM fallback** (hide for built-in AI)
 - ✅ List available local models when in fallback mode:
+  - Llama-3.2-1B-Instruct-q0f16-MLC
   - SmolLM2-360M-Instruct
   - SmolLM2-135M-Instruct
   - Qwen2.5-0.5B-Instruct
-  - Llama-3.2-1B-Instruct
 - ✅ Show current model with checkmark (✓)
 - ✅ Display model metadata (size, description)
 - ✅ Implement model switching logic
@@ -357,7 +357,7 @@ This extension uses a **smart dual-provider architecture** to maximize performan
 
 **Architecture Notes**:
 - Built-in AI mode: No model selection needed (Chrome manages it)
-- Transformers.js fallback mode: Show full model selector
+- WebLLM fallback mode: Show full model selector
 - Auto-detect provider and adjust UI accordingly
 
 **Acceptance Criteria**:
@@ -375,7 +375,7 @@ This extension uses a **smart dual-provider architecture** to maximize performan
 **Status**: ✅ Completed  
 **Priority**: P0 (Must Have)
 
-**Description**: Set up Vercel AI SDK with Chrome's built-in AI (primary) and Transformers.js (fallback).
+**Description**: Set up Vercel AI SDK with Chrome's built-in AI (primary) and WebLLM (fallback).
 
 **Actions**:
 - ✅ Import `streamText` and `convertToModelMessages` from `ai`
@@ -387,11 +387,11 @@ This extension uses a **smart dual-provider architecture** to maximize performan
   - ✅ Handle states: "unavailable", "available", "after-download"
   - ✅ Use `createSessionWithProgress()` for Chrome model download
 - ✅ **Custom Transport Implementation**:
-  - ✅ Created `ClientSideChatTransport` class implementing `ChatTransport<BuiltInAIUIMessage>`
+  - ✅ Created `ClientSideChatTransport` class implementing `ChatTransport<BuiltInAIUIMessage | WebLLMUIMessage>`
   - ✅ Implemented `sendMessages()` with download progress tracking
   - ✅ Added stream merging with `writer.merge(result.toUIMessageStream())`
   - ✅ Error handling with user notifications
-- ✅ Implement provider switching logic (Built-in AI only, no server fallback)
+- ✅ Implement provider switching logic (Built-in AI primary, WebLLM fallback)
 - ✅ Show warning when Built-in AI not available
 
 **Browser Requirements** (for built-in AI):
@@ -417,8 +417,8 @@ if (doesBrowserSupportBuiltInAI()) {
     useBuiltInAI(model);
   }
 } else {
-  // Show warning: Built-in AI not available
-  showWarningMessage();
+  // Use WebLLM with model selection
+  useWebLLM();
 }
 ```
 
@@ -431,7 +431,7 @@ if (doesBrowserSupportBuiltInAI()) {
 - [x] User is notified which provider is active (header status)
 - [x] Warning shown when Built-in AI not available
 - [x] useChat hook integrated with custom transport
-- [x] Type conversion between BuiltInAIUIMessage and Message formats
+- [x] Type conversion between BuiltInAIUIMessage/WebLLMUIMessage and Message formats
 
 ---
 
@@ -607,28 +607,28 @@ if (doesBrowserSupportBuiltInAI()) {
   - Statuses: "unavailable", "downloadable", "downloading", "available"
   - Chrome manages caching automatically (no manual cache management needed)
   - Show one-time download progress when first using built-in AI
-- **Transformers.js Fallback**:
-  - Use `model.availability()` for Transformers.js models
+- **WebLLM Fallback**:
+  - Use `model.availability()` for WebLLM models
   - Track cached models with metadata (name, size, last used)
   - Use browser Cache API for model files
   - Implement cache storage tracking
   - Add delete cached model functionality
   - Show storage usage warnings
-- Display which provider is active (Built-in AI or Transformers.js)
+- Display which provider is active (Built-in AI or WebLLM)
 - Show appropriate cache management UI for each provider
 
 **Provider Differences**:
 - **Built-in AI**: Chrome handles all caching (user can't manage)
-- **Transformers.js**: Full manual cache management available
+- **WebLLM**: Full manual cache management available
 
 **Dependencies**: Task 10
 
 **Acceptance Criteria**:
 - [ ] Model availability checked correctly for both providers
 - [ ] Built-in AI download happens once per browser
-- [ ] Transformers.js models tracked with metadata
-- [ ] Storage usage displayed for Transformers.js
-- [ ] Delete functionality works for Transformers.js models
+- [ ] WebLLM models tracked with metadata
+- [ ] Storage usage displayed for WebLLM
+- [ ] Delete functionality works for WebLLM models
 
 ---
 
@@ -933,7 +933,7 @@ if (doesBrowserSupportBuiltInAI()) {
 **Status**: Not Started  
 **Priority**: P1 (Should Have)
 
-**Description**: Create UI panel for managing cached models and storage (Transformers.js only).
+**Description**: Create UI panel for managing cached models and storage (WebLLM only).
 
 **Actions**:
 - Create storage management panel in settings
@@ -941,7 +941,7 @@ if (doesBrowserSupportBuiltInAI()) {
   - Show "Chrome/Edge manages built-in AI models automatically"
   - Display estimated model size (if available from API)
   - No delete option (Chrome manages lifecycle)
-- **Transformers.js Mode**:
+- **WebLLM Mode**:
   - List all cached models with metadata:
     - Model name
     - File size
@@ -958,10 +958,10 @@ if (doesBrowserSupportBuiltInAI()) {
 
 **Acceptance Criteria**:
 - [ ] Built-in AI shows appropriate "no management needed" message
-- [ ] Transformers.js models listed with full details
-- [ ] Storage usage accurate for Transformers.js
-- [ ] Delete buttons work (Transformers.js only)
-- [ ] Clear all works with confirmation (Transformers.js only)
+- [ ] WebLLM models listed with full details
+- [ ] Storage usage accurate for WebLLM
+- [ ] Delete buttons work (WebLLM only)
+- [ ] Clear all works with confirmation (WebLLM only)
 - [ ] Provider switch option available
 
 ---
