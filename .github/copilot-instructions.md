@@ -26,11 +26,15 @@ sendMessages() → createUIMessageStream() → writer.merge(result.toUIMessageSt
 // Summarization methods:
 summarizeText() → Full text response (non-streaming)
 streamSummary() → Streaming with callback for real-time UI updates
+
+// Progress tracking:
+onDownloadProgress() → Callback for download/extraction progress updates
 ```
 
 **Key implementation details**:
 - **Model caching**: `cachedWebLLMModel` prevents re-initialization across messages
-- **Progress tracking**: Uses `createSessionWithProgress()` for download UI during first load
+- **Progress tracking**: `onDownloadProgress()` callback emits progress during model download (downloading, extracting, complete)
+- **Progress callback format**: `{ status: 'downloading'|'extracting'|'complete', progress: 0-100, message: string }`
 - **Provider switching**: `setPreferredProvider()` resets detection to allow user override
 - **Message conversion**: Converts between `BuiltInAIUIMessage`/`WebLLMUIMessage` and UI `Message` types
 - **Summarization support**: Added `streamSummary()` method for streaming page summaries
@@ -40,6 +44,7 @@ streamSummary() → Streaming with callback for real-time UI updates
 - Use `writer.merge()` to combine download progress and text streams
 - Check `model.availability()` before streaming to show proper UI states
 - For summarization, use `streamSummary()` to get real-time callback updates
+- For progress tracking, use `onDownloadProgress(callback)` to register and handle progress updates
 
 ### 2. Dual-Summarizer System for Page Summarization
 
@@ -85,7 +90,37 @@ streamSummary() → Streaming with callback for real-time UI updates
 
 **Critical**: `content.ts` runs in page context, `background.ts` in service worker context, `App.tsx` in sidebar context. Use `chrome.runtime.sendMessage()` for cross-context communication.
 
-### 3. Vite Build Configuration (`vite.config.ts`)
+### 3.5 Model Download Progress & User Feedback UI
+
+**Download Progress Dialog** (Modal popup during model download):
+
+```
+1. App.tsx sets up: transport.onDownloadProgress((progress) => setModelDownloadProgress(...))
+2. ClientSideChatTransport emits progress:
+   - First call: { status: 'downloading', progress: 0, message: 'Downloading model...' }
+   - Ongoing: { status: 'downloading', progress: 45, message: 'Downloading model...' }
+   - Complete: { status: 'complete', progress: 100, message: 'Done!' }
+3. DownloadProgressDialog component displays:
+   - Animated spinner + progress bar with percentage
+   - Auto-dismisses 1 second after 100% complete
+4. WebLLM info banner (stays in header):
+   - Shows "Using WebLLM with local model..." message
+   - Has dismiss X button for user to hide it
+   - State: dismissedWebLLMInfo controls visibility
+```
+
+**Key implementation details**:
+- **Progress dialog**: `src/components/ui/download-progress-dialog.tsx` with Framer Motion animations
+- **Progress callback**: Called 3x per provider (first, ongoing, complete) from `handleBuiltInAI()` and `handleWebLLM()`
+- **Auto-dismiss**: Uses `setTimeout(() => setModelDownloadProgress(null), 1000)` after completion
+- **Info banner**: `src/App.tsx` lines ~407-421, conditional render based on `activeProvider === 'web-llm' && !dismissedWebLLMInfo`
+- **Dismiss button**: X icon (Lucide React) with hover effects, updates `dismissedWebLLMInfo` state
+
+**When modifying progress UI**:
+- Progress dialog auto-hides after 1s - don't manually hide before that
+- Info banner dismiss is session-based - resets on page reload
+- Both UI elements must not interfere with chat flow (non-blocking)
+- Progress updates should be emitted by transport, not parsed from message parts
 
 Extension requires **multi-entry builds**:
 
@@ -214,8 +249,11 @@ Fixed-width content causes scrollbars. **Solution**: Use `overflow-x-hidden` on 
 
 ## 🔍 Where to Find Key Logic
 
-- **AI provider selection**: `src/lib/client-side-chat-transport.ts` → `selectProvider()`
+- **AI provider selection**: `src/lib/client-side-chat-transport.ts` → `detectAvailableProvider()`
 - **Message streaming**: `src/lib/client-side-chat-transport.ts` → `sendMessages()` → `createUIMessageStream()`
+- **Progress tracking**: `src/lib/client-side-chat-transport.ts` → `onDownloadProgress()` callback
+- **Download progress dialog**: `src/components/ui/download-progress-dialog.tsx` with Framer Motion animations
+- **WebLLM info banner**: `src/App.tsx` → WebLLM fallback info message with dismiss button
 - **Page summarization**: `src/background.ts` + `src/content.ts` + `src/App.tsx` (`chrome.runtime.onMessage`)
 - **Summarizer API**: `src/lib/summarizer-utils.ts` → `summarizeWithFallback()` with Chrome Summarizer + LLM fallback
 - **Chat UI state**: `src/App.tsx` → `useChat` hook from `@ai-sdk/react`
@@ -257,5 +295,8 @@ Example: `components/ui/typing-indicator.tsx` uses `motion.div` with `animate` p
 
 ---
 
-**Last Updated**: October 2025 | **Status**: Active development | **Build**: Production-ready MVP
+**Last Updated**: October 17, 2025 | **Status**: Active development | **Build**: Production-ready MVP
+- ✅ Model download progress dialog with Framer Motion animations
+- ✅ WebLLM info banner with dismiss button
+- ✅ Callback-based progress tracking (no message extraction needed)
 

@@ -24,7 +24,7 @@
 ### ✅ Phase 3: AI Integration (4/4 Completed)
 - ✅ Task 10: Vercel AI SDK + Built-in AI Integration
 - ✅ Task 11: Text Streaming Implementation
-- ✅ Task 12: Model Download Progress UI (Partially - progress tracking in transport)
+- ✅ Task 12: Model Download Progress UI with Dialog & Dismiss Banner
 - ✅ Task 13: Error Handling & Recovery
 
 ### ✅ Phase 4: Page Summarization (4/4 Completed)
@@ -466,7 +466,76 @@ if (doesBrowserSupportBuiltInAI()) {
 
 ---
 
-### Task 12: Reasoning Component Integration
+### Task 12: Model Download Progress UI & WebLLM Info Banner
+**Status**: ✅ Completed  
+**Priority**: P0 (Must Have)
+
+**Description**: Display real-time model download progress with visual feedback and dismissible info banner.
+
+**Implementation**:
+
+#### Download Progress Dialog (`src/components/ui/download-progress-dialog.tsx`)
+- ✅ Created modal popup overlay with semi-transparent background
+- ✅ Animated spinner (Lucide `Loader2`) + progress bar
+- ✅ Percentage text display (0-100%)
+- ✅ Status labels: "Downloading model..." / "Extracting model..."
+- ✅ Indeterminate progress bar during extraction phase
+- ✅ Framer Motion enter/exit animations
+- ✅ Auto-dismisses 1 second after 100% completion
+- ✅ Non-blocking modal (doesn't interrupt chat flow)
+
+#### Callback-Based Progress Tracking (`src/lib/client-side-chat-transport.ts`)
+- ✅ Added `private progressCallback` field
+- ✅ Added `onDownloadProgress(callback)` method to register callback
+- ✅ Called from `handleBuiltInAI()` at three points:
+  - First update: `{ status: 'downloading', progress: 0, message: 'Downloading model...' }`
+  - Ongoing updates: `{ status: 'downloading', progress: X, message: 'Downloading model...' }`
+  - Completion: `{ status: 'complete', progress: 100, message: 'Done!' }`
+- ✅ Called from `handleWebLLM()` with same pattern
+- ✅ Handles both downloading and extracting phases
+
+#### App Integration (`src/App.tsx`)
+- ✅ Added state: `const [modelDownloadProgress, setModelDownloadProgress] = useState<{...} | null>(null)`
+- ✅ Setup in useEffect: `transport.onDownloadProgress((progress) => { ... })`
+- ✅ Auto-dismiss logic: `setTimeout(() => setModelDownloadProgress(null), 1000)` after completion
+- ✅ JSX: `<DownloadProgressDialog isOpen={modelDownloadProgress !== null} ... />`
+- ✅ Removed `showLoadingStatus` prop (redundant with popup)
+
+#### WebLLM Info Banner with Dismiss (`src/App.tsx`)
+- ✅ Added state: `const [dismissedWebLLMInfo, setDismissedWebLLMInfo] = useState(false)`
+- ✅ Info message shows only when `activeProvider === 'web-llm' && !dismissedWebLLMInfo`
+- ✅ Added dismiss X button (Lucide `X` icon) with hover effects
+- ✅ Button calls `setDismissedWebLLMInfo(true)` to hide message
+- ✅ Session-based dismissal (resets on page reload)
+- ✅ Hover effect: `hover:bg-blue-200 dark:hover:bg-blue-800`
+- ✅ Full dark mode support
+
+**Features**:
+- ✅ Non-blocking modal prevents chat interruption
+- ✅ Callback-based progress is reliable (no message extraction)
+- ✅ Both providers emit progress correctly
+- ✅ Auto-dismiss provides clear completion visual feedback
+- ✅ Works with both Built-in AI and WebLLM providers
+- ✅ Dismissible info banner informs users about first-response latency
+- ✅ Smooth Framer Motion animations for professional look
+
+**Dependencies**: Task 10 (AI Integration), Task 11 (Streaming)
+
+**Acceptance Criteria**:
+- [x] Download progress displays with percentage
+- [x] Progress bar animates smoothly (0-100%)
+- [x] Status text updates appropriately ("Downloading" → "Extracting" → "Complete")
+- [x] Auto-dismisses 1 second after 100% completion
+- [x] Works for both Built-in AI and WebLLM
+- [x] No interference with chat flow
+- [x] Info banner shows for WebLLM provider only
+- [x] Dismiss X button hides info banner
+- [x] Dismissed state persists during session
+- [x] No duplicate "loading model" text in chat messages
+
+---
+
+### Task 13: Reasoning Component Integration
 **Status**: Not Started  
 **Priority**: P1 (Should Have)
 
@@ -481,7 +550,7 @@ if (doesBrowserSupportBuiltInAI()) {
 - Add animation for expand/collapse
 - Make keyboard navigable
 
-**Dependencies**: Task 11
+**Dependencies**: Task 12
 
 **Acceptance Criteria**:
 - [ ] Reasoning sections display correctly
@@ -491,7 +560,7 @@ if (doesBrowserSupportBuiltInAI()) {
 
 ---
 
-### Task 13: Sources Component Integration
+### Task 14: Sources Component Integration
 **Status**: Not Started  
 **Priority**: P1 (Should Have)
 
@@ -1233,5 +1302,5 @@ interface PageData {
 
 ---
 
-**Last Updated**: October 15, 2025  
-**Version**: 1.0
+**Last Updated**: October 17, 2025  
+**Version**: 1.1

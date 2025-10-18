@@ -75,6 +75,7 @@ export class ClientSideChatTransport implements ChatTransport<UIMessage> {
   private cachedWebLLMModel: ReturnType<typeof webLLM> | null = null
   private webLLMModelInitializing: Promise<void> | null = null
   private providerChangeCallback: ((provider: 'built-in-ai' | 'web-llm') => void) | null = null
+  private progressCallback: ((progress: { status: string; progress: number; message: string }) => void) | null = null
   private static hasLoggedInitialization = false
 
   constructor(preferredProvider: 'built-in-ai' | 'web-llm' | 'auto' = 'auto') {
@@ -201,6 +202,13 @@ export class ClientSideChatTransport implements ChatTransport<UIMessage> {
     this.providerChangeCallback = callback
   }
 
+  /**
+   * Set a callback to be called with download progress updates
+   */
+  onDownloadProgress(callback: (progress: { status: string; progress: number; message: string }) => void): void {
+    this.progressCallback = callback
+  }
+
   private async handleBuiltInAI(
     prompt: ModelMessage[],
     abortSignal: AbortSignal | undefined
@@ -234,8 +242,15 @@ export class ClientSideChatTransport implements ChatTransport<UIMessage> {
             console.log('[Built-in AI] Download progress:', percent + '%')
 
             if (progress >= 1) {
-              // Download complete
-              console.log('[Built-in AI] Download complete')
+              // Download complete - model is ready for inference
+              console.log('[Built-in AI] Download complete, ready for inference')
+              if (this.progressCallback) {
+                this.progressCallback({
+                  status: 'complete',
+                  progress: 100,
+                  message: 'Model loaded! Ready to chat...',
+                })
+              }
               if (downloadProgressId) {
                 writer.write({
                   type: 'data-modelDownloadProgress',
@@ -244,7 +259,7 @@ export class ClientSideChatTransport implements ChatTransport<UIMessage> {
                     status: 'complete',
                     progress: 100,
                     message:
-                      'Model finished downloading! Getting ready for inference...',
+                      'Model loaded! Ready to chat...',
                   },
                 })
               }
@@ -255,6 +270,13 @@ export class ClientSideChatTransport implements ChatTransport<UIMessage> {
             if (!downloadProgressId) {
               downloadProgressId = `download-${Date.now()}`
               console.log('[Built-in AI] First progress update, id:', downloadProgressId)
+              if (this.progressCallback) {
+                this.progressCallback({
+                  status: 'downloading',
+                  progress: percent,
+                  message: 'Downloading Chrome Built-in AI model...',
+                })
+              }
               writer.write({
                 type: 'data-modelDownloadProgress',
                 id: downloadProgressId,
@@ -269,6 +291,13 @@ export class ClientSideChatTransport implements ChatTransport<UIMessage> {
             }
 
             // Ongoing progress updates
+            if (this.progressCallback) {
+              this.progressCallback({
+                status: 'downloading',
+                progress: percent,
+                message: `Downloading Chrome Built-in AI model... ${percent}%`,
+              })
+            }
             writer.write({
               type: 'data-modelDownloadProgress',
               id: downloadProgressId,
@@ -357,8 +386,15 @@ export class ClientSideChatTransport implements ChatTransport<UIMessage> {
             console.log('[WebLLM] Download progress:', percent + '%')
 
             if (progress >= 1) {
-              // Download complete
-              console.log('[WebLLM] Download complete')
+              // Download complete - model is ready for inference
+              console.log('[WebLLM] Download complete, ready for inference')
+              if (this.progressCallback) {
+                this.progressCallback({
+                  status: 'complete',
+                  progress: 100,
+                  message: 'Model loaded! Ready to chat...',
+                })
+              }
               if (downloadProgressId) {
                 writer.write({
                   type: 'data-modelDownloadProgress',
@@ -367,7 +403,7 @@ export class ClientSideChatTransport implements ChatTransport<UIMessage> {
                     status: 'complete',
                     progress: 100,
                     message:
-                      'Model finished downloading! Getting ready for inference...',
+                      'Model loaded! Ready to chat...',
                   },
                 })
               }
@@ -378,6 +414,13 @@ export class ClientSideChatTransport implements ChatTransport<UIMessage> {
             if (!downloadProgressId) {
               downloadProgressId = `download-${Date.now()}`
               console.log('[WebLLM] First progress update, id:', downloadProgressId)
+              if (this.progressCallback) {
+                this.progressCallback({
+                  status: 'downloading',
+                  progress: percent,
+                  message: 'Downloading WebLLM model...',
+                })
+              }
               writer.write({
                 type: 'data-modelDownloadProgress',
                 id: downloadProgressId,
@@ -392,6 +435,13 @@ export class ClientSideChatTransport implements ChatTransport<UIMessage> {
             }
 
             // Ongoing progress updates
+            if (this.progressCallback) {
+              this.progressCallback({
+                status: 'downloading',
+                progress: percent,
+                message: `Downloading WebLLM model... ${percent}%`,
+              })
+            }
             writer.write({
               type: 'data-modelDownloadProgress',
               id: downloadProgressId,

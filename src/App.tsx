@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useChat } from '@ai-sdk/react'
+import { X } from 'lucide-react'
 import {
   doesBrowserSupportBuiltInAI,
   builtInAI,
@@ -12,6 +13,7 @@ import {
 import { ClientSideChatTransport } from '@/lib/client-side-chat-transport'
 import { Chat } from '@/components/ui/chat'
 import { ProviderSelector } from '@/components/ui/provider-selector'
+import { DownloadProgressDialog } from '@/components/ui/download-progress-dialog'
 import type { Message } from '@/components/ui/chat-message'
 import { summarizeWithFallback } from '@/lib/summarizer-utils'
 import './App.css'
@@ -79,6 +81,12 @@ function App() {
   >([])
   const [isClient, setIsClient] = useState(false)
   const [input, setInput] = useState('')
+  const [modelDownloadProgress, setModelDownloadProgress] = useState<{
+    status: "downloading" | "extracting" | "complete"
+    progress: number
+    message: string
+  } | null>(null)
+  const [dismissedWebLLMInfo, setDismissedWebLLMInfo] = useState(false)
   
   // Initialize transport once using useMemo to ensure it's available during render
   // useMemo prevents the double-initialization issue in React Strict Mode
@@ -138,7 +146,26 @@ function App() {
     transport.setPreferredProvider(preferredProvider)
   }, [preferredProvider, transport])
 
-  const { status, sendMessage, messages: rawMessages, stop, setMessages } = useChat<UIMessage>({
+  // Set up download progress callback on transport
+  useEffect(() => {
+    transport.onDownloadProgress((progress) => {
+      console.log('[App] Download progress:', progress)
+      setModelDownloadProgress({
+        status: progress.status as "downloading" | "extracting" | "complete",
+        progress: progress.progress,
+        message: progress.message,
+      })
+      
+      // Auto-dismiss after 1 second when complete
+      if (progress.status === 'complete') {
+        setTimeout(() => {
+          setModelDownloadProgress(null)
+        }, 1000)
+      }
+    })
+  }, [transport])
+
+    const { status, sendMessage, messages: rawMessages, stop, setMessages } = useChat<UIMessage>({
     transport: transport,
     onError(error: Error) {
       console.error('Chat error:', error)
@@ -154,6 +181,11 @@ function App() {
     },
     experimental_throttle: 50,
   })
+
+  const isLoading = status === 'submitted' || status === 'streaming'
+
+  // Convert messages to the format expected by Chat component
+  const messages = rawMessages.map(convertToMessage)
 
   // Listen for page summarization requests from background script
   useEffect(() => {
@@ -261,15 +293,35 @@ Provide a clear, well-structured summary focusing on the main points and key inf
     // Cleanup
     return () => {
       if (chrome.runtime && chrome.runtime.onMessage) {
-        chrome.runtime.onMessage.removeListener(handleMessage);
+    chrome.runtime.onMessage.removeListener(handleMessage);
       }
     };
   }, [transport, setMessages]);
 
-  // Convert messages to the format expected by Chat component
-  const messages = rawMessages.map(convertToMessage)
-
-  const isLoading = status === 'submitted' || status === 'streaming'
+  // Extract download progress from messages
+  useEffect(() => {
+    // Look for download progress data in the last message's parts
+    const lastMessage = rawMessages[rawMessages.length - 1]
+    if (lastMessage && lastMessage.parts && Array.isArray(lastMessage.parts)) {
+      for (const part of lastMessage.parts) {
+        const dataType = (part as unknown as { type: string }).type
+        const partData = (part as unknown as { data: unknown }).data
+        if (dataType === 'data' && partData && (partData as { status?: string }).status) {
+          const data = partData as { status: string; progress: number; message: string }
+          setModelDownloadProgress({
+            status: data.status as "downloading" | "extracting" | "complete",
+            progress: data.progress || 0,
+            message: data.message || 'Downloading model...',
+          })
+          return
+        }
+      }
+    }
+    // If no progress data found and not loading, clear the progress display
+    if (!isLoading) {
+      setModelDownloadProgress(null)
+    }
+  }, [rawMessages, isLoading])
 
   const handleSubmit = (event?: { preventDefault?: () => void }) => {
     event?.preventDefault?.()
@@ -349,14 +401,29 @@ Provide a clear, well-structured summary focusing on the main points and key inf
       )}
 
       {/* Info message for WebLLM fallback */}
-      {activeProvider === 'web-llm' && (
-        <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border-b border-blue-200 dark:border-blue-800">
+      {activeProvider === 'web-llm' && !dismissedWebLLMInfo && (
+        <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border-b border-blue-200 dark:border-blue-800 flex items-center justify-between gap-2">
           <p className="text-xs text-blue-700 dark:text-blue-300">
             ℹ️ Using WebLLM with local model. First response may take longer as
             the model downloads.
           </p>
+          <button
+            onClick={() => setDismissedWebLLMInfo(true)}
+            className="flex-shrink-0 p-1 hover:bg-blue-200 dark:hover:bg-blue-800 rounded transition-colors"
+            aria-label="Dismiss message"
+          >
+            <X className="h-4 w-4 text-blue-700 dark:text-blue-300" />
+          </button>
         </div>
       )}
+
+      {/* Model Download Progress Dialog */}
+      <DownloadProgressDialog
+        isOpen={modelDownloadProgress !== null}
+        status={modelDownloadProgress?.status || "downloading"}
+        progress={modelDownloadProgress?.progress || 0}
+        message={modelDownloadProgress?.message || ""}
+      />
 
       {/* Chat Container (Flex-1, Scrollable) */}
       <div className="sidebar-content">
@@ -368,7 +435,7 @@ Provide a clear, well-structured summary focusing on the main points and key inf
           isGenerating={isLoading}
           stop={stop}
           append={append}
-          showLoadingStatus={activeProvider === 'web-llm'}
+          showLoadingStatus={false}
           suggestions={[
             'What is the weather in San Francisco?',
             'Explain step-by-step how to solve this math problem: If x² + 6x + 9 = 25, what is x?',
