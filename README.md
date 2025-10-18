@@ -82,7 +82,9 @@ Then manually reload the extension in `chrome://extensions/` after making change
 3. Select **"Summarize this page"** from context menu
 4. The sidebar opens automatically with:
    - **User message**: Page title + URL
-   - **AI response**: Intelligent summary of the page content
+   - **AI response**: Intelligent summary using:
+     - **Chrome Summarizer API** (if available in Chrome 128+) - Optimized native summaries
+     - **LLM Fallback** - Built-in AI or WebLLM models for other browsers
 5. Continue chatting about the summary!
 
 ### Features
@@ -153,12 +155,31 @@ User Input
     ↓
 6. Shows: "Summarize: **Page Title**\n{URL}"
     ↓
-7. AI provider receives full page content
+7. Page content sent to summarizer:
+    ├─ Chrome Summarizer API (if available)
+    └─ LLM fallback (Built-in AI or WebLLM)
     ↓
 8. Streams summary with typing animation
     ↓
 9. User can continue conversation about summary
 ```
+
+### Dual Summarizer System
+
+**Primary: Chrome Summarizer API**
+- Native browser API (when available in Chrome 128+)
+- Optimized summarization options:
+  - Types: key-points, tldr, teaser, headline
+  - Lengths: short, medium, long
+  - Format: markdown or plain-text
+- Faster, uses less memory
+- Managed by browser automatically
+
+**Fallback: LLM-Based Summarization**
+- Uses Built-in AI or WebLLM models
+- Works on all modern browsers
+- Customizable via LLM provider settings
+- Supports full conversation context
 
 ## 📁 Project Structure
 

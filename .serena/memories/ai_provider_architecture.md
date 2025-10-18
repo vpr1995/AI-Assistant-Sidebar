@@ -13,6 +13,20 @@
    - Manual model management
    - Works on any browser with WebGPU/WASM
 
+## Dual-Summarizer System (New)
+
+### For Page Summarization
+1. **Chrome Summarizer API** (Primary) - Native browser API
+   - Available in Chrome 128+ (when feature ships)
+   - Optimized summarization with configurable options
+   - Faster, lower memory usage
+   - Managed by browser automatically
+
+2. **LLM Fallback** (Fallback) - Uses text generation models
+   - Built-in AI (Gemini Nano/Phi Mini)
+   - WebLLM (Llama 3.2, SmolLM2, Qwen2.5)
+   - Works on all modern browsers
+
 ## Built-in AI Provider
 
 ### Detection
@@ -74,6 +88,50 @@ const result = streamText({
 })
 ```
 
+## Chrome Summarizer API Provider
+
+### Detection
+```typescript
+checkChromeSummarizerAvailability() → Promise<boolean>
+// Checks if Summarizer exists in global scope and is available
+```
+
+### Availability Status
+- "unavailable" - API not supported or not available
+- "available" - Can be used immediately
+
+### Configuration Options
+```typescript
+interface SummarizerOptions {
+  type?: 'key-points' | 'tldr' | 'teaser' | 'headline'
+  length?: 'short' | 'medium' | 'long'
+  format?: 'markdown' | 'plain-text'
+  sharedContext?: string
+}
+```
+
+### Usage in Transport
+```typescript
+const summarizer = await Summarizer.create({
+  type: 'key-points',
+  length: 'long',
+  format: 'markdown'
+})
+const stream = summarizer.summarizeStreaming(text)
+for await (const chunk of stream) {
+  onChunk(chunk) // Receive streamed summary chunks
+}
+```
+
+### Requirements
+- Chrome 128+ with `chrome://flags/#prompt-api-for-summarizer-api` enabled
+- User activation required (click event)
+- Monitor for download progress via ProgressMonitor
+
+### When Not Available
+- Automatically falls back to LLM-based summarization
+- Uses same streaming interface for consistent UX
+
 ## ClientSideChatTransport Implementation
 
 ### Initialization
@@ -82,7 +140,7 @@ transport = new ClientSideChatTransport('auto')
 // 'auto' | 'built-in-ai' | 'web-llm'
 ```
 
-### Provider Detection Flow
+### Provider Detection Flow for Chat
 ```
 1. Check if user has preference set
    ├─ Yes: Use preferred provider if available, fallback to detect
@@ -97,24 +155,43 @@ transport = new ClientSideChatTransport('auto')
    │  └─ Not available → Error
 ```
 
-### Key Methods
+### Provider Detection Flow for Summarization
+```
+1. Check Chrome Summarizer availability
+   ├─ Available → Use Chrome Summarizer API
+   └─ Unavailable → Use LLM fallback
 
+2. LLM Fallback:
+   ├─ Check Built-in AI availability
+   │  ├─ Available → Use Built-in AI
+   │  └─ Unavailable → Check WebLLM
+   ├─ Check WebLLM availability
+   │  ├─ Available → Use WebLLM
+   │  └─ Not available → Error
+```
+
+## Key Methods
+
+### For Chat Messages
 #### sendMessages()
 - Handles standard chat messages
-- Uses detected provider
+- Uses detected provider (Built-in AI or WebLLM)
 - Returns streaming response
 - Supports model download progress
 
+### For Summarization
 #### summarizeText()
 - Direct summarization without chat UI
-- Returns complete text
+- Returns complete text in one response
 - Useful for non-interactive summaries
 
 #### streamSummary()
 - Streaming summarization with callback
 - Calls `onChunk` for each text delta
 - Ideal for typed animation in UI
+- Works with both Chrome Summarizer and LLM fallback
 
+### For Provider Management
 #### setPreferredProvider()
 - Allows user to switch providers
 - Resets detection on change
@@ -123,6 +200,10 @@ transport = new ClientSideChatTransport('auto')
 #### onProviderChange()
 - Callback when provider changes
 - Used to update UI indicators
+
+#### getActiveProvider()
+- Returns currently active provider
+- Returns: 'built-in-ai' | 'web-llm' | null
 
 ## Streaming Mechanism
 
@@ -146,6 +227,15 @@ while (true) {
 - Runs in Web Worker via transformers.js
 - Slightly slower but works offline
 
+### Chrome Summarizer Streaming
+```typescript
+const summarizer = await Summarizer.create({ /* options */ })
+const stream = summarizer.summarizeStreaming(text)
+for await (const chunk of stream) {
+  onChunk(chunk) // Receive streamed chunks
+}
+```
+
 ## Download Progress Tracking
 
 ### Built-in AI Download
@@ -158,14 +248,22 @@ while (true) {
 - Progress available during download
 - Cached locally for future use
 
+### Chrome Summarizer Download
+- Monitored via ProgressMonitor callback
+- Shows download progress and speed
+- Browser manages caching
+
 ## Page Summarization Integration
 
-### Content Flow
-1. Page content extracted (max 8000 chars)
+### Complete Flow
+1. Page content extracted (max 15,000 chars)
 2. Prompt created with content embedded
-3. `transport.streamSummary()` called with prompt
-4. UI receives chunks and updates message
-5. Typing animation plays as text arrives
+3. `summarizeWithFallback()` called with prompt and options
+4. Chrome Summarizer API attempts summarization (if available)
+5. On failure or unavailability, falls back to `transport.streamSummary()`
+6. Chunks streamed via callback
+7. UI receives chunks and updates message
+8. Typing animation plays as text arrives
 
 ### Prompt Structure for Summarization
 ```
@@ -175,7 +273,7 @@ Title: {page_title}
 URL: {page_url}
 Author: {byline if available}
 Content:
-{page_content_truncated}
+{page_content_truncated_to_15000_chars}
 
 Provide a clear, well-structured summary...
 ```
@@ -202,15 +300,20 @@ Provide a clear, well-structured summary...
 - If preferred provider fails → Fall back to other
 - Reset and re-detect on next message
 
+### Summarizer Errors
+- Chrome Summarizer fails → Auto-fallback to LLM
+- LLM also fails → Show error to user
+- Provides actionable error messages
+
 ## Performance Considerations
 
-### Built-in AI
-- **Pros**: Fastest, managed by browser, optimal hardware use
-- **Cons**: Browser version dependent, may not be available
+### For Chat
+- **Built-in AI**: Fastest, managed by browser, optimal hardware use
+- **WebLLM**: Works offline, user control, open source models
 
-### WebLLM
-- **Pros**: Works offline, user control, open source models
-- **Cons**: Slower, larger model sizes, manual cache management
+### For Summarization
+- **Chrome Summarizer API**: Fastest, optimized, lower memory
+- **LLM Fallback**: Works everywhere, customizable, full control
 
 ### Streaming Benefits
 - Real-time feedback to user
@@ -238,6 +341,18 @@ type ModelMessage = {
 }
 ```
 
+### Summarizer Options Type
+```typescript
+interface SummarizerOptions {
+  type?: 'key-points' | 'tldr' | 'teaser' | 'headline'
+  length?: 'short' | 'medium' | 'long'
+  format?: 'markdown' | 'plain-text'
+  sharedContext?: string
+}
+
+type SummarizerProvider = 'chrome-summarizer' | 'fallback' | null
+```
+
 ## Debugging
 
 ### Enable Detailed Logging
@@ -245,6 +360,13 @@ All transport methods log to console with `[ClientSideChatTransport]` prefix:
 - Provider detection steps
 - Stream start/end
 - Chunk arrivals
+- Error details
+
+All summarizer methods log with `[Summarizer]` prefix:
+- API availability checks
+- Chrome Summarizer initialization
+- Stream progress
+- Fallback activation
 - Error details
 
 ### Monitor Provider Changes
@@ -258,4 +380,10 @@ transport.onProviderChange((provider) => {
 ```typescript
 const current = transport.getActiveProvider()
 // Returns: 'built-in-ai' | 'web-llm' | null
+```
+
+### Check Summarizer Provider
+```typescript
+const provider = await detectSummarizerProvider()
+// Returns: 'chrome-summarizer' | 'fallback'
 ```

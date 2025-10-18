@@ -194,7 +194,7 @@ Title: ${message.data.title}
 URL: ${message.data.url}
 ${message.data.byline ? `Author: ${message.data.byline}\n` : ''}
 Content:
-${message.data.content.slice(0, 8000)}${message.data.content.length > 8000 ? '\n\n[Content truncated for length]' : ''}
+${message.data.content.slice(0, 15000)}${message.data.content.length > 15000 ? '\n\n[Content truncated for length]' : ''}
 
 Provide a clear, well-structured summary focusing on the main points and key information.`;
 

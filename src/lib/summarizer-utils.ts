@@ -56,7 +56,7 @@ export async function streamChromeSummary(
     // Create summarizer with options
     const summarizer = await Summarizer.create({
       type: options.type || 'key-points',
-      length: options.length || 'medium',
+      length: options.length || 'long',
       format: options.format || 'markdown',
       sharedContext: options.sharedContext,
       monitor(m: ProgressMonitor) {

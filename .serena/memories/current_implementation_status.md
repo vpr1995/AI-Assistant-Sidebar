@@ -23,17 +23,73 @@
 - Dual-provider detection and switching
 - Error handling and user notifications
 
-### ✅ Phase 4: Page Summarization (NEW - 4/4 Complete)
+### ✅ Phase 4: Page Summarization (4/4 Complete)
+- **Chrome Summarizer API**: Native browser API for optimized summaries
 - **Context Menu**: Right-click "Summarize this page" option
 - **Content Extraction**: Using @mozilla/readability
 - **Content Script**: Extracts and cleans page content
 - **Background Handler**: Routes extraction and opens sidebar
 - **Streaming Summary**: AI response streams with typing animation
+- **Dual Summarizer Architecture**:
+  - Primary: Chrome Summarizer API (when available)
+  - Fallback: LLM transport layer (Built-in AI or WebLLM)
 - **Transport Methods**: 
   - `summarizeText()` - Full text summary
   - `streamSummary()` - Streaming with callback
 - **Chat Management**: Auto-clear on new summarization
 - **UI/UX**: Title (bold) + URL (white) in user message
+- **Content Truncation**: Increased from 8000 to 15,000 characters
+
+## Summarizer API Details
+
+### Chrome Summarizer API (`src/lib/summarizer-utils.ts`)
+
+**Availability Check**:
+```typescript
+checkChromeSummarizerAvailability() → Promise<boolean>
+// Checks if Chrome Summarizer exists and is available
+```
+
+**Streaming Summarization**:
+```typescript
+streamChromeSummary(text, onChunk, options) → Promise<void>
+// Streams summary chunks via callback
+// Options: type, length, format, sharedContext
+```
+
+**Provider Detection**:
+```typescript
+detectSummarizerProvider() → Promise<'chrome-summarizer' | 'fallback'>
+// Tries Chrome Summarizer first, returns 'fallback' if unavailable
+```
+
+**Fallback Handler**:
+```typescript
+summarizeWithFallback(text, onChunk, options, fallbackFn) → Promise<SummarizerProvider>
+// Primary: Chrome Summarizer API
+// Fallback: LLM via transport.streamSummary()
+```
+
+### Summarization Options
+
+```typescript
+interface SummarizerOptions {
+  type?: 'key-points' | 'tldr' | 'teaser' | 'headline'  // Default: 'key-points'
+  length?: 'short' | 'medium' | 'long'                   // Default: 'long'
+  format?: 'markdown' | 'plain-text'                      // Default: 'markdown'
+  sharedContext?: string                                  // Optional context
+}
+```
+
+### Integration in App.tsx
+
+- Listens for `chrome.runtime.onMessage` with `summarizePage` action
+- Creates user message: "Summarize: **{title}**\n{url}"
+- Clears previous messages for fresh context
+- Calls `summarizeWithFallback()` with options
+- Uses `onChunk` callback to update AI message in real-time
+- Falls back to `transport.streamSummary()` if Chrome Summarizer fails
+- Provides error handling with user alerts
 
 ## Feature Details
 
@@ -43,10 +99,11 @@
    - Fallback to basic DOM parsing if Readability fails
    - Extracts: title, content, byline, site name, URL
 
-2. **Transport**
-   - Messages routed through background → sidebar
-   - Sidebar receives data via `chrome.runtime.onMessage`
-   - Chat history cleared on new request
+2. **Summarization**
+   - Chrome Summarizer API (if available)
+   - LLM fallback with transport layer
+   - Content truncated to 15,000 characters (was 8,000)
+   - Full markdown formatting in response
 
 3. **UI**
    - User message: "Summarize: **Page Title**\n{URL}"
@@ -83,7 +140,7 @@ streamSummary(prompt: string, onChunk: (chunk: string) => void): Promise<void>
 
 ### New Files Created
 - `src/content.ts` - Content script for page extraction
-- `src/chrome.d.ts` - Chrome API type declarations (optional)
+- `src/lib/summarizer-utils.ts` - Chrome Summarizer API utilities
 
 ### Modified Files
 - `public/manifest.json` - Added permissions, content scripts
@@ -126,6 +183,9 @@ dist/
 - ✅ Chat clears on new summarization
 - ✅ Links visible in white color
 - ✅ Error handling works gracefully
+- ✅ Chrome Summarizer API fallback works
+- ✅ Content truncation at 15,000 characters
+- ✅ Summarization options applied correctly
 
 ## Known Limitations
 
@@ -133,12 +193,15 @@ dist/
 2. **Memory Usage**: Large conversations may impact browser memory
 3. **WebGPU**: Not available on all browsers, falls back to WASM
 4. **Page Parsing**: Some complex pages may not parse correctly
-5. **Content Limit**: Page content truncated to 8000 characters for summarization
+5. **Chrome Summarizer API**: Only available in Chrome 128+ (when feature ships)
 
 ## Dependencies Added
 
 ### For Page Summarization
 - `@mozilla/readability` - Article content extraction
+
+### For Chrome Summarizer API
+- Native Chrome Summarizer API (built-in, no npm package needed)
 
 ### Already Present
 - `@built-in-ai/core` - Chrome built-in AI
@@ -147,11 +210,27 @@ dist/
 - `react` - UI framework
 - `tailwindcss` - Styling
 
-## Recent Changes (Latest)
+## Recent Changes (Latest - October 2025)
 
-1. Added page summarization with right-click context menu
-2. Implemented content script for @mozilla/readability integration
-3. Added streamSummary() method to transport layer
-4. Chat auto-clears on new summarization request
-5. Fixed link colors to be visible (white text)
-6. Updated manifest with required permissions
+1. Implemented Chrome Summarizer API integration with fallback
+2. Increased page content truncation from 8,000 to 15,000 characters
+3. Added `streamChromeSummary()` method for Chrome Summarizer streaming
+4. Added `detectSummarizerProvider()` for automatic provider detection
+5. Updated `summarizeWithFallback()` with dual-provider logic
+6. Enhanced error handling with fallback chain
+7. Added comprehensive type definitions for summarizer options
+8. Documented summarization architecture and flows
+9. Updated all documentation and memories with summarizer details
+
+## Architecture Notes
+
+**Never bypass the summarizer flow**:
+- All page summaries must go through `summarizeWithFallback()`
+- Always provide both Chrome Summarizer and LLM fallback options
+- Use callback interface for real-time UI updates
+- Maintain consistent error handling across both providers
+
+**Provider Priority**:
+1. Chrome Summarizer API (if available)
+2. LLM via transport layer (fallback)
+3. Error handling with user notification

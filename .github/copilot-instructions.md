@@ -22,6 +22,10 @@ async detectAvailableProvider(): 'built-in-ai' | 'web-llm'
 
 // sendMessages() handles streaming with download progress:
 sendMessages() → createUIMessageStream() → writer.merge(result.toUIMessageStream())
+
+// Summarization methods:
+summarizeText() → Full text response (non-streaming)
+streamSummary() → Streaming with callback for real-time UI updates
 ```
 
 **Key implementation details**:
@@ -29,13 +33,44 @@ sendMessages() → createUIMessageStream() → writer.merge(result.toUIMessageSt
 - **Progress tracking**: Uses `createSessionWithProgress()` for download UI during first load
 - **Provider switching**: `setPreferredProvider()` resets detection to allow user override
 - **Message conversion**: Converts between `BuiltInAIUIMessage`/`WebLLMUIMessage` and UI `Message` types
+- **Summarization support**: Added `streamSummary()` method for streaming page summaries
 
 **When modifying AI integration**:
 - Never bypass `ClientSideChatTransport` - all AI calls must go through it
 - Use `writer.merge()` to combine download progress and text streams
 - Check `model.availability()` before streaming to show proper UI states
+- For summarization, use `streamSummary()` to get real-time callback updates
 
-### 2. Chrome Extension Message Flow
+### 2. Dual-Summarizer System for Page Summarization
+
+**Page Summarization** (right-click → AI summary):
+
+```
+1. User right-clicks → background.ts contextMenus.onClicked
+2. background.ts → chrome.tabs.sendMessage('extractPageContent') to content.ts
+3. content.ts → @mozilla/readability.parse() extracts article
+4. background.ts → chrome.runtime.sendMessage('summarizePage', data)
+5. App.tsx chrome.runtime.onMessage → summarizeWithFallback() called
+6. summarizeWithFallback() tries:
+   ├─ Chrome Summarizer API (if available)
+   └─ LLM fallback (Built-in AI or WebLLM)
+7. AI streams response character-by-character to chat UI
+```
+
+**Key implementation details**:
+- **Summarizer detection**: `checkChromeSummarizerAvailability()` checks for Chrome Summarizer API
+- **Dual-provider approach**: `summarizeWithFallback()` tries Chrome API first, falls back to LLM
+- **Streaming callback**: Both providers use same callback interface for real-time UI updates
+- **Content limit**: Page content truncated to 15,000 characters for processing
+- **Chat management**: Previous messages cleared on new summarization for clean context
+
+**When modifying summarization**:
+- Never bypass `summarizeWithFallback()` - all summaries must go through it
+- Use callback interface for streaming chunks (works with both providers)
+- Check availability before using Chrome Summarizer API
+- Always provide LLM fallback function in case Chrome API fails or isn't available
+
+### 3. Chrome Extension Message Flow
 
 **Page Summarization** (right-click → AI summary):
 
@@ -173,6 +208,7 @@ Fixed-width content causes scrollbars. **Solution**: Use `overflow-x-hidden` on 
 - **`@mozilla/readability`**: Extracts main article content from web pages
 - **`highlight.js`**: Code syntax highlighting (replaced Shiki to reduce bundle by 330 modules)
 - **`react-markdown`**: Markdown rendering in chat messages
+- **`Chrome Summarizer API`**: Native browser API for optimized page summaries (built into Chrome 128+)
 
 ---
 
@@ -181,6 +217,7 @@ Fixed-width content causes scrollbars. **Solution**: Use `overflow-x-hidden` on 
 - **AI provider selection**: `src/lib/client-side-chat-transport.ts` → `selectProvider()`
 - **Message streaming**: `src/lib/client-side-chat-transport.ts` → `sendMessages()` → `createUIMessageStream()`
 - **Page summarization**: `src/background.ts` + `src/content.ts` + `src/App.tsx` (`chrome.runtime.onMessage`)
+- **Summarizer API**: `src/lib/summarizer-utils.ts` → `summarizeWithFallback()` with Chrome Summarizer + LLM fallback
 - **Chat UI state**: `src/App.tsx` → `useChat` hook from `@ai-sdk/react`
 - **Build config**: `vite.config.ts` → `rollupOptions.input` for multi-entry builds
 - **Extension manifest**: `public/manifest.json` → permissions, CSP, content scripts
