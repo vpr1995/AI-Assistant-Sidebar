@@ -88,6 +88,7 @@ function App() {
     message: string
   } | null>(null)
   const [dismissedWebLLMInfo, setDismissedWebLLMInfo] = useState(false)
+  const [isSummarizeOrRewriteLoading, setIsSummarizeOrRewriteLoading] = useState(false)
   
   // Initialize transport once using useMemo to ensure it's available during render
   // useMemo prevents the double-initialization issue in React Strict Mode
@@ -238,6 +239,9 @@ function App() {
           // Clear existing messages when starting a new summarization
           setMessages([]);
           
+          // Set loading state to show typing indicator
+          setIsSummarizeOrRewriteLoading(true);
+          
           // Create user message with title and URL
           const userMessageId = `user-${Date.now()}`;
           const userMessage: UIMessage = {
@@ -281,6 +285,9 @@ Provide a clear, well-structured summary focusing on the main points and key inf
           const summarizerProvider = await summarizeWithFallback(
             summarizationPrompt,
             (chunk: string) => {
+              // Hide typing indicator on first chunk
+              setIsSummarizeOrRewriteLoading(false);
+              
               // Update the AI message with accumulated text
               aiMessage = {
                 ...aiMessage,
@@ -315,6 +322,7 @@ Provide a clear, well-structured summary focusing on the main points and key inf
           
         } catch (error) {
           console.error('[App] Error summarizing page:', error);
+          setIsSummarizeOrRewriteLoading(false);
           alert('Failed to summarize page. Please try again.');
         }
       } else if (message.action === 'rewriteText' && message.data) {
@@ -325,6 +333,9 @@ Provide a clear, well-structured summary focusing on the main points and key inf
           
           // Clear existing messages when starting a new rewrite
           setMessages([]);
+          
+          // Set loading state to show typing indicator
+          setIsSummarizeOrRewriteLoading(true);
           
           // Create user message with the original text and tone
           const userMessageId = `user-${Date.now()}`;
@@ -359,6 +370,9 @@ Provide a clear, well-structured summary focusing on the main points and key inf
           
           // Stream the rewritten text using transport
           await transport.streamSummary(rewritePrompt, (chunk: string) => {
+            // Hide typing indicator on first chunk
+            setIsSummarizeOrRewriteLoading(false);
+            
             // Update the AI message with accumulated text
             aiMessage = {
               ...aiMessage,
@@ -383,6 +397,7 @@ Provide a clear, well-structured summary focusing on the main points and key inf
           
         } catch (error) {
           console.error('[App] Error rewriting text:', error);
+          setIsSummarizeOrRewriteLoading(false);
           alert('Failed to rewrite text. Please try again.');
         }
       }
@@ -537,6 +552,7 @@ Provide a clear, well-structured summary focusing on the main points and key inf
           stop={stop}
           append={append}
           showLoadingStatus={false}
+          isSummarizeOrRewriteLoading={isSummarizeOrRewriteLoading}
           suggestions={[
             'What is the weather in San Francisco?',
             'Explain step-by-step how to solve this math problem: If x² + 6x + 9 = 25, what is x?',

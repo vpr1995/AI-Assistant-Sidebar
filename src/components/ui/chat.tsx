@@ -33,9 +33,10 @@ interface ChatPropsBase {
     messageId: string,
     rating: "thumbs-up" | "thumbs-down"
   ) => void
-  setMessages?: (messages: any[]) => void
+  setMessages?: (messages: Message[]) => void
   transcribeAudio?: (blob: Blob) => Promise<string>
   showLoadingStatus?: boolean
+  isSummarizeOrRewriteLoading?: boolean
 }
 
 interface ChatPropsWithoutSuggestions extends ChatPropsBase {
@@ -64,13 +65,15 @@ export function Chat({
   setMessages,
   transcribeAudio,
   showLoadingStatus = false,
+  isSummarizeOrRewriteLoading = false,
 }: ChatProps) {
   const lastMessage = messages[messages.length - 1]
   const isEmpty = messages.length === 0
   // Show typing indicator when:
   // 1. AI is generating AND last message is from user
   // 2. OR when status is submitted (before first streaming chunk arrives)
-  const isTyping = isGenerating && (lastMessage?.role === "user" || !lastMessage)
+  // 3. OR when summarize/rewrite is loading
+  const isTyping = (isGenerating && (lastMessage?.role === "user" || !lastMessage)) || isSummarizeOrRewriteLoading
 
   const messagesRef = useRef(messages)
   messagesRef.current = messages
@@ -94,11 +97,12 @@ export function Chat({
 
     if (lastAssistantMessage.toolInvocations) {
       const updatedToolInvocations = lastAssistantMessage.toolInvocations.map(
-        (toolInvocation: any) => {
-          if (toolInvocation.state === "call") {
+        (toolInvocation: unknown) => {
+          const inv = toolInvocation as { state?: string; [key: string]: unknown }
+          if (inv.state === "call") {
             needsUpdate = true
             return {
-              ...toolInvocation,
+              ...inv,
               state: "result",
               result: {
                 content: "Tool execution was cancelled",
@@ -108,7 +112,7 @@ export function Chat({
           }
           return toolInvocation
         }
-      )
+      ) as typeof lastAssistantMessage.toolInvocations
 
       if (needsUpdate) {
         updatedMessage = {
@@ -119,6 +123,7 @@ export function Chat({
     }
 
     if (lastAssistantMessage.parts && lastAssistantMessage.parts.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const updatedParts = lastAssistantMessage.parts.map((part: any) => {
         if (
           part.type === "tool-invocation" &&
