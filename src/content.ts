@@ -1,9 +1,18 @@
 /**
  * Content script for extracting page content
  * Uses @mozilla/readability to extract main content from web pages
+ * Also handles YouTube transcript extraction
  */
 
 import { Readability } from '@mozilla/readability';
+import { YoutubeTranscript } from '@danielxceron/youtube-transcript';
+import {
+  isYouTubeVideoPage,
+  extractYouTubeVideoId,
+  getYouTubeVideoTitle,
+  getYouTubeChannelName,
+  formatTranscript,
+} from './lib/youtube-utils';
 
 // Listen for messages from background script
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -45,11 +54,83 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         error: error instanceof Error ? error.message : 'Failed to extract content',
       });
     }
+  } else if (message.action === 'extractYouTubeTranscript') {
+    handleYouTubeTranscriptExtraction(sendResponse);
   }
   
   // Return true to indicate we'll send a response asynchronously
   return true;
 });
+
+/**
+ * Handle YouTube transcript extraction
+ */
+async function handleYouTubeTranscriptExtraction(
+  sendResponse: (response: Record<string, unknown>) => void
+) {
+  try {
+    // Check if we're on a YouTube video page
+    if (!isYouTubeVideoPage()) {
+      sendResponse({
+        success: false,
+        error: 'Not a YouTube video page',
+      });
+      return;
+    }
+    
+    // Extract video ID from current URL
+    const videoId = extractYouTubeVideoId(window.location.href);
+    if (!videoId) {
+      sendResponse({
+        success: false,
+        error: 'Could not extract video ID from URL',
+      });
+      return;
+    }
+    
+    console.log('[Content Script] Extracting transcript for video:', videoId);
+    
+    // Fetch transcript using youtube-transcript library
+    const transcripts = await YoutubeTranscript.fetchTranscript(videoId);
+    
+    if (!transcripts || transcripts.length === 0) {
+      sendResponse({
+        success: false,
+        error: 'No transcript available for this video. It may be restricted, age-gated, or have no captions.',
+      });
+      return;
+    }
+    
+    // Format the transcript
+    const formattedTranscript = formatTranscript(transcripts);
+    
+    // Get video metadata
+    const videoTitle = getYouTubeVideoTitle() || 'YouTube Video';
+    const channelName = getYouTubeChannelName();
+    
+    sendResponse({
+      success: true,
+      data: {
+        title: videoTitle,
+        content: formattedTranscript,
+        excerpt: formattedTranscript.slice(0, 200) + '...',
+        byline: channelName || '',
+        siteName: 'YouTube',
+        url: window.location.href,
+        videoId,
+        isYouTubeVideo: true,
+      },
+    });
+  } catch (error) {
+    console.error('[Content Script] Error extracting YouTube transcript:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to extract transcript';
+    sendResponse({
+      success: false,
+      error: errorMessage,
+    });
+  }
+}
+
 
 /**
  * Fallback content extraction when Readability fails

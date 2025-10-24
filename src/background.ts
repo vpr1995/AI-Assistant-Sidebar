@@ -66,6 +66,19 @@ chrome.runtime.onInstalled.addListener(() => {
     contexts: ['page', 'selection'],
   });
 
+  // Summarize YouTube video menu (only on YouTube)
+  chrome.contextMenus.create({
+    id: 'summarize-youtube-video',
+    title: 'Summarize this video',
+    contexts: ['page'],
+    documentUrlPatterns: [
+      '*://www.youtube.com/watch*',
+      '*://youtube.com/watch*',
+      '*://youtu.be/*',
+      '*://www.youtube-nocookie.com/embed/*',
+    ],
+  });
+
   // Rewrite text parent menu
   chrome.contextMenus.create({
     id: 'rewrite-text',
@@ -117,6 +130,36 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       }
     } catch (error) {
       console.error('[Background] Error handling context menu click:', error);
+    }
+  } else if (info.menuItemId === 'summarize-youtube-video' && tab?.id) {
+    console.log('[Background] Summarize YouTube video clicked');
+    
+    try {
+      // Open the side panel first
+      if (chrome.sidePanel && chrome.sidePanel.open) {
+        await chrome.sidePanel.open({ tabId: tab.id });
+      }
+      
+      // Send message to content script to extract YouTube transcript
+      const response = await chrome.tabs.sendMessage(tab.id, {
+        action: 'extractYouTubeTranscript',
+      });
+      
+      if (response.success) {
+        console.log('[Background] YouTube transcript extracted successfully');
+        
+        // Send the extracted transcript to the sidebar (will be queued if not ready)
+        sendMessageWhenReady({
+          action: 'summarizeYouTubeVideo',
+          data: response.data,
+        });
+
+        console.log('[Background] YouTube summarize message queued/sent');
+      } else {
+        console.error('[Background] Failed to extract transcript:', response.error);
+      }
+    } catch (error) {
+      console.error('[Background] Error handling YouTube summarization:', error);
     }
   } else if (typeof info.menuItemId === 'string' && info.menuItemId.startsWith('rewrite-text-') && tab?.id) {
     const tone = info.menuItemId.replace('rewrite-text-', '');

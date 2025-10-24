@@ -401,6 +401,88 @@ Provide a clear, well-structured summary focusing on the main points and key inf
           setIsSummarizeOrRewriteLoading(false);
           alert('Failed to rewrite text. Please try again.');
         }
+      } else if (message.action === 'summarizeYouTubeVideo' && message.data) {
+        console.log('[App] Received YouTube video summarization request:', message.data);
+        
+        try {
+          const { title = '', content = '', url = '', byline = '' } = message.data;
+          
+          // Clear existing messages when starting a new summarization
+          setMessages([]);
+          
+          // Set loading state to show typing indicator
+          setIsSummarizeOrRewriteLoading(true);
+          
+          // Create user message with video title and URL
+          const userMessageId = `user-${Date.now()}`;
+          const userMessage: UIMessage = {
+            id: userMessageId,
+            role: 'user',
+            parts: [{
+              type: 'text',
+              text: `YouTube Video Summary: **${title}**\n${url}${byline ? `\nChannel: ${byline}` : ''}`
+            }]
+          };
+          
+          // Add user message to chat immediately
+          setMessages((prevMessages) => [...prevMessages, userMessage]);
+          
+          // Prepare summarization prompt for AI with transcript
+          const summarizationPrompt = `Please provide a concise and well-structured summary of the following YouTube video transcript.
+
+Video Title: ${title}
+${byline ? `Channel: ${byline}\n` : ''}URL: ${url}
+Transcript:
+${content.slice(0, 15000)}${content.length > 15000 ? '\n\n[Transcript truncated for length]' : ''}
+
+Provide a clear summary that captures the main points and key takeaways from the video.`;
+
+          // Create an AI message that will be updated as streaming happens
+          const aiMessageId = `assistant-${Date.now()}`;
+          let aiMessage: UIMessage = {
+            id: aiMessageId,
+            role: 'assistant',
+            parts: [{
+              type: 'text',
+              text: ''
+            }]
+          };
+          
+          // Add empty AI message
+          setMessages((prevMessages) => [...prevMessages, aiMessage]);
+          
+          // Stream the summary using transport
+          await transport.streamSummary(summarizationPrompt, (chunk: string) => {
+            // Hide typing indicator on first chunk
+            setIsSummarizeOrRewriteLoading(false);
+            
+            // Update the AI message with accumulated text
+            aiMessage = {
+              ...aiMessage,
+              parts: [{
+                type: 'text',
+                text: (aiMessage.parts[0] as { type: 'text'; text: string }).text + chunk
+              }]
+            };
+            
+            // Update messages array
+            setMessages((prevMessages) => {
+              const messages = [...prevMessages];
+              const lastIndex = messages.length - 1;
+              if (lastIndex >= 0 && messages[lastIndex] && messages[lastIndex].id === aiMessageId) {
+                messages[lastIndex] = aiMessage;
+              }
+              return messages;
+            });
+          });
+          
+          console.log('[App] YouTube video summarization complete');
+          
+        } catch (error) {
+          console.error('[App] Error summarizing YouTube video:', error);
+          setIsSummarizeOrRewriteLoading(false);
+          alert('Failed to summarize video. Please try again.');
+        }
       }
     };
 
