@@ -16,6 +16,7 @@ import { ProviderSelector } from '@/components/ui/provider-selector'
 import { DownloadProgressDialog } from '@/components/ui/download-progress-dialog'
 import type { Message } from '@/components/ui/chat-message'
 import { summarizeWithFallback } from '@/lib/summarizer-utils'
+import { getRewritePrompt, formatRewriteUserMessage, type RewriteTone } from '@/lib/rewrite-utils'
 import './App.css'
 
 // Unified message type supporting both providers
@@ -196,12 +197,26 @@ function App() {
     }
 
     const handleMessage = async (
-      message: { action: string; data?: { title: string; content: string; url: string; excerpt: string; byline: string; siteName: string } }
+      message: { 
+        action: string
+        data?: { 
+          title?: string
+          content?: string
+          url?: string
+          excerpt?: string
+          byline?: string
+          siteName?: string
+          originalText?: string
+          tone?: RewriteTone
+        }
+      }
     ) => {
       if (message.action === 'summarizePage' && message.data) {
         console.log('[App] Received summarize page request:', message.data);
         
         try {
+          const { title = '', content = '', url = '', byline = '' } = message.data;
+          
           // Clear existing messages when starting a new summarization
           setMessages([]);
           
@@ -212,7 +227,7 @@ function App() {
             role: 'user',
             parts: [{
               type: 'text',
-              text: `Summarize: **${message.data.title}**\n${message.data.url}`
+              text: `Summarize: **${title}**\n${url}`
             }]
           };
           
@@ -222,11 +237,11 @@ function App() {
           // Prepare summarization prompt for AI (this includes the content but won't be visible)
           const summarizationPrompt = `Please provide a concise summary of the following web page:
 
-Title: ${message.data.title}
-URL: ${message.data.url}
-${message.data.byline ? `Author: ${message.data.byline}\n` : ''}
+Title: ${title}
+URL: ${url}
+${byline ? `Author: ${byline}\n` : ''}
 Content:
-${message.data.content.slice(0, 15000)}${message.data.content.length > 15000 ? '\n\n[Content truncated for length]' : ''}
+${content.slice(0, 15000)}${content.length > 15000 ? '\n\n[Content truncated for length]' : ''}
 
 Provide a clear, well-structured summary focusing on the main points and key information.`;
 
@@ -283,6 +298,74 @@ Provide a clear, well-structured summary focusing on the main points and key inf
         } catch (error) {
           console.error('[App] Error summarizing page:', error);
           alert('Failed to summarize page. Please try again.');
+        }
+      } else if (message.action === 'rewriteText' && message.data) {
+        console.log('[App] Received rewrite text request:', message.data);
+        
+        try {
+          const { originalText, tone } = message.data as { originalText: string; tone: RewriteTone };
+          
+          // Clear existing messages when starting a new rewrite
+          setMessages([]);
+          
+          // Create user message with the original text and tone
+          const userMessageId = `user-${Date.now()}`;
+          const userMessage: UIMessage = {
+            id: userMessageId,
+            role: 'user',
+            parts: [{
+              type: 'text',
+              text: formatRewriteUserMessage(originalText, tone)
+            }]
+          };
+          
+          // Add user message to chat immediately
+          setMessages((prevMessages) => [...prevMessages, userMessage]);
+          
+          // Get the rewrite prompt based on tone
+          const rewritePrompt = getRewritePrompt(originalText, tone);
+          
+          // Create an AI message that will be updated as streaming happens
+          const aiMessageId = `assistant-${Date.now()}`;
+          let aiMessage: UIMessage = {
+            id: aiMessageId,
+            role: 'assistant',
+            parts: [{
+              type: 'text',
+              text: ''
+            }]
+          };
+          
+          // Add empty AI message
+          setMessages((prevMessages) => [...prevMessages, aiMessage]);
+          
+          // Stream the rewritten text using transport
+          await transport.streamSummary(rewritePrompt, (chunk: string) => {
+            // Update the AI message with accumulated text
+            aiMessage = {
+              ...aiMessage,
+              parts: [{
+                type: 'text',
+                text: (aiMessage.parts[0] as { type: 'text'; text: string }).text + chunk
+              }]
+            };
+            
+            // Update messages array
+            setMessages((prevMessages) => {
+              const messages = [...prevMessages];
+              const lastIndex = messages.length - 1;
+              if (lastIndex >= 0 && messages[lastIndex] && messages[lastIndex].id === aiMessageId) {
+                messages[lastIndex] = aiMessage;
+              }
+              return messages;
+            });
+          });
+          
+          console.log('[App] Rewrite text complete');
+          
+        } catch (error) {
+          console.error('[App] Error rewriting text:', error);
+          alert('Failed to rewrite text. Please try again.');
         }
       }
     };
