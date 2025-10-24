@@ -44,10 +44,7 @@ export function ProviderSelector({
   })
 
   return (
-    <div className={cn("flex items-center gap-2", className)}>
-      <label htmlFor="provider-select" className="text-xs font-medium text-muted-foreground">
-        AI Provider:
-      </label>
+    <div className={cn("flex items-center", className)}>
       <select
         id="provider-select"
         value={value}
@@ -55,12 +52,15 @@ export function ProviderSelector({
           onChange(e.target.value as "built-in-ai" | "web-llm" | "auto")
         }
         className={cn(
-          "h-8 rounded-md border border-input bg-background px-2.5 py-1 text-xs",
-          "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+          "h-8 rounded-md border border-border bg-popover text-popover-foreground px-2.5 py-1 text-xs",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
           "disabled:cursor-not-allowed disabled:opacity-50",
-          "cursor-pointer transition-colors",
-          "hover:bg-accent/50 dark:hover:bg-accent/30"
+          "cursor-pointer transition-all duration-200",
+          "hover:bg-accent/50 hover:text-accent-foreground",
+          "dark:hover:bg-accent/30"
         )}
+        title="Select AI Provider"
+        aria-label="AI Provider"
       >
         {selectableOptions.map((option) => (
           <option key={option.id} value={option.id} title={option.description}>

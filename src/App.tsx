@@ -13,6 +13,7 @@ import {
 import { ClientSideChatTransport } from '@/lib/client-side-chat-transport'
 import { Chat } from '@/components/ui/chat'
 import { ProviderSelector } from '@/components/ui/provider-selector'
+import { SettingsMenu } from '@/components/ui/settings-menu'
 import { DownloadProgressDialog } from '@/components/ui/download-progress-dialog'
 import type { Message } from '@/components/ui/chat-message'
 import { summarizeWithFallback } from '@/lib/summarizer-utils'
@@ -486,21 +487,19 @@ Provide a clear, well-structured summary focusing on the main points and key inf
           <div className="status-indicator"></div>
           <span className="font-medium text-sm">{getProviderLabel()}</span>
         </div>
-        <ProviderSelector
-          value={preferredProvider}
-          onChange={(provider) => {
-            console.log('[App] User selected provider:', provider)
-            setPreferredProvider(provider)
-          }}
-          availableProviders={availableProviders}
-          className="mr-2"
-        />
-        <button
-          className="reset-button"
-          onClick={() => window.location.reload()}
-        >
-          Reset
-        </button>
+        <div className="flex items-center gap-2">
+          <ProviderSelector
+            value={preferredProvider}
+            onChange={(provider) => {
+              console.log('[App] User selected provider:', provider)
+              setPreferredProvider(provider)
+            }}
+            availableProviders={availableProviders}
+          />
+          <SettingsMenu
+            onReset={() => window.location.reload()}
+          />
+        </div>
       </header>
 
       {/* Warning when AI is not available */}
