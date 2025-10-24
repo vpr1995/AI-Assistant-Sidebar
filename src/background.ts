@@ -11,6 +11,40 @@ chrome.action?.onClicked?.addListener((tab) => {
   }
 });
 
+// Track pending messages and sidebar readiness
+let sidebarReady = false;
+let pendingMessages: Array<{ action: string; data?: unknown }> = [];
+
+// Listen for ready signal from sidebar
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message.action === 'sidebarReady') {
+    console.log('[Background] Sidebar is ready');
+    sidebarReady = true;
+
+    // Send any pending messages
+    if (pendingMessages.length > 0) {
+      console.log(`[Background] Sending ${pendingMessages.length} pending messages`);
+      pendingMessages.forEach((msg) => {
+        chrome.runtime.sendMessage(msg);
+      });
+      pendingMessages = [];
+    }
+
+    sendResponse({ received: true });
+  }
+});
+
+// Helper function to send message when sidebar is ready
+function sendMessageWhenReady(message: { action: string; data?: unknown }): void {
+  if (sidebarReady) {
+    console.log(`[Background] Sidebar ready, sending message immediately: ${message.action}`);
+    chrome.runtime.sendMessage(message);
+  } else {
+    console.log(`[Background] Sidebar not ready yet, queuing message: ${message.action}`);
+    pendingMessages.push(message);
+  }
+}
+
 // Define rewrite tone options
 const REWRITE_TONES = [
   { id: 'concise', label: 'Concise' },
@@ -71,12 +105,13 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       if (response.success) {
         console.log('[Background] Content extracted successfully');
         
-        // Send the extracted content to the sidebar
-        // We'll broadcast to all extension pages (the sidebar will handle it)
-        chrome.runtime.sendMessage({
+        // Send the extracted content to the sidebar (will be queued if not ready)
+        sendMessageWhenReady({
           action: 'summarizePage',
           data: response.data,
         });
+
+        console.log('[Background] Summarize message queued/sent');
       } else {
         console.error('[Background] Failed to extract content:', response.error);
       }
@@ -95,14 +130,16 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
         await chrome.sidePanel.open({ tabId: tab.id });
       }
 
-      // Send the selected text and tone to the sidebar
-      chrome.runtime.sendMessage({
+      // Send the selected text and tone to the sidebar (will be queued if not ready)
+      sendMessageWhenReady({
         action: 'rewriteText',
         data: {
           originalText: selectedText,
           tone: tone,
         },
       });
+
+      console.log(`[Background] Rewrite message queued/sent for tone: ${tone}`);
     } catch (error) {
       console.error('[Background] Error handling rewrite text click:', error);
     }

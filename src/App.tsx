@@ -188,6 +188,24 @@ function App() {
   // Convert messages to the format expected by Chat component
   const messages = rawMessages.map(convertToMessage)
 
+  // Signal to background script that sidebar is ready to receive messages
+  useEffect(() => {
+    // Check if chrome.runtime is available
+    if (typeof chrome === 'undefined' || !chrome.runtime) {
+      console.log('[App] chrome.runtime not available, skipping ready signal (normal in dev mode)');
+      return;
+    }
+
+    // Send a ready signal to the background script
+    // This ensures background.ts knows the sidebar is ready to receive messages
+    try {
+      chrome.runtime.sendMessage({ action: 'sidebarReady' });
+      console.log('[App] Sent ready signal to background script');
+    } catch {
+      console.log('[App] Could not send ready signal (normal if background script not listening)');
+    }
+  }, []);
+
   // Listen for page summarization requests from background script
   useEffect(() => {
     // Check if chrome.runtime is available (it won't be during local dev with vite dev server)
