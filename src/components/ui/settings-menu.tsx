@@ -107,60 +107,77 @@ export function SettingsMenu({ onReset }: SettingsMenuProps) {
               right: `${menuPosition.right}px`,
             }}
             className={cn(
-              'w-64 rounded-lg',
+              'w-72 rounded-lg',
               'bg-popover text-popover-foreground',
-              'border border-border shadow-lg z-50',
-              'overflow-hidden',
+              'border border-border/50 shadow-lg z-50',
+              'overflow-hidden backdrop-blur-sm',
             )}
           >
-            <div className="p-3">
+            <div className="p-4 space-y-4">
               {/* Theme Section */}
-              <div className="mb-3">
-                <div className="px-2 py-2 text-xs font-semibold text-muted-foreground">
-                  Theme
-                </div>
-                <div className="space-y-1">
-                  {themes.map((t, i) => (
-                    <motion.button
-                      key={t.value}
-                      custom={i}
-                      variants={itemVariants}
-                      initial="hidden"
-                      animate="visible"
-                      onClick={() => {
-                        setTheme(t.value)
-                        setIsOpen(false)
-                      }}
-                      className={cn(
-                        'w-full flex items-center gap-3 px-3 py-2.5 rounded-md',
-                        'text-sm transition-all duration-150',
-                        'hover:bg-accent hover:text-accent-foreground',
-                        'focus:outline-none focus:ring-2 focus:ring-ring',
-                        theme === t.value && 'bg-accent text-accent-foreground',
-                      )}
-                    >
-                      {t.icon}
-                      <span>{t.label}</span>
-                      {theme === t.value && (
+              <div>
+                <div className="flex items-center gap-3 px-2 py-3 rounded-lg bg-accent/5 hover:bg-accent/10 transition-colors">
+                  <div className="text-sm font-semibold text-foreground">
+                    Theme
+                  </div>
+                  <div className="flex gap-2 ml-auto">
+                    {themes.map((t, i) => (
+                      <motion.button
+                        key={t.value}
+                        custom={i}
+                        variants={itemVariants}
+                        initial="hidden"
+                        animate="visible"
+                        onClick={() => {
+                          setTheme(t.value)
+                        }}
+                        className={cn(
+                          'h-8 w-8 p-0 rounded-md flex items-center justify-center',
+                          'transition-all duration-150 relative',
+                          'hover:bg-accent/50',
+                          'focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
+                          'dark:focus:ring-offset-background',
+                          theme === t.value && 'bg-accent text-accent-foreground shadow-md',
+                        )}
+                        title={t.label}
+                        aria-label={`Select ${t.label} theme`}
+                      >
+                        {theme === t.value && (
+                          <motion.div
+                            layoutId="theme-button-bg"
+                            className="absolute inset-0 rounded-md bg-accent"
+                            style={{ zIndex: -1 }}
+                            transition={{
+                              type: 'spring',
+                              stiffness: 300,
+                              damping: 30,
+                            }}
+                          />
+                        )}
                         <motion.div
-                          layoutId="theme-check"
-                          className="ml-auto"
+                          animate={{ scale: theme === t.value ? 1.15 : 1 }}
                           transition={{
                             type: 'spring',
                             stiffness: 300,
-                            damping: 30,
+                            damping: 25,
                           }}
+                          className={cn(
+                            'transition-colors duration-150',
+                            theme === t.value
+                              ? 'text-accent-foreground'
+                              : 'text-muted-foreground hover:text-foreground',
+                          )}
                         >
-                          <div className="h-1.5 w-1.5 rounded-full bg-current" />
+                          {t.icon}
                         </motion.div>
-                      )}
-                    </motion.button>
-                  ))}
+                      </motion.button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
               {/* Divider */}
-              <div className="h-px bg-border my-3" />
+              <div className="h-px bg-border/50" />
 
               {/* Reset Section */}
               <motion.button
@@ -173,11 +190,12 @@ export function SettingsMenu({ onReset }: SettingsMenuProps) {
                   setIsOpen(false)
                 }}
                 className={cn(
-                  'w-full flex items-center gap-3 px-3 py-2.5 rounded-md',
-                  'text-sm transition-all duration-150',
-                  'hover:bg-accent hover:text-accent-foreground',
-                  'focus:outline-none focus:ring-2 focus:ring-ring',
-                  'text-destructive hover:bg-destructive/10',
+                  'w-full flex items-center gap-3 px-3 py-3 rounded-lg',
+                  'text-sm font-medium transition-all duration-150',
+                  'hover:bg-destructive/10 hover:text-destructive',
+                  'focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
+                  'dark:focus:ring-offset-background',
+                  'text-destructive/80 hover:text-destructive',
                 )}
               >
                 <RotateCcw className="h-4 w-4" />
