@@ -37,6 +37,9 @@ interface ChatPropsBase {
   transcribeAudio?: (blob: Blob) => Promise<string>
   showLoadingStatus?: boolean
   isSummarizeOrRewriteLoading?: boolean
+  preferredProvider?: "built-in-ai" | "web-llm" | "auto"
+  onProviderChange?: (provider: "built-in-ai" | "web-llm" | "auto") => void
+  availableProviders?: ("built-in-ai" | "web-llm")[]
 }
 
 interface ChatPropsWithoutSuggestions extends ChatPropsBase {
@@ -66,6 +69,9 @@ export function Chat({
   transcribeAudio,
   showLoadingStatus = false,
   isSummarizeOrRewriteLoading = false,
+  preferredProvider,
+  onProviderChange,
+  availableProviders,
 }: ChatProps) {
   const lastMessage = messages[messages.length - 1]
   const isEmpty = messages.length === 0
@@ -235,18 +241,17 @@ export function Chat({
         isPending={isGenerating || isTyping}
         handleSubmit={handleSubmit}
       >
-        {({ files, setFiles }) => (
-          <MessageInput
-            value={input}
-            onChange={handleInputChange}
-            allowAttachments
-            files={files}
-            setFiles={setFiles}
-            stop={handleStop}
-            isGenerating={isGenerating}
-            transcribeAudio={transcribeAudio}
-          />
-        )}
+        <MessageInput
+          value={input}
+          onChange={handleInputChange}
+          allowAttachments={false}
+          stop={handleStop}
+          isGenerating={isGenerating}
+          transcribeAudio={transcribeAudio}
+          preferredProvider={preferredProvider}
+          onProviderChange={onProviderChange}
+          availableProviders={availableProviders}
+        />
       </ChatForm>
     </ChatContainer>
   )
@@ -317,10 +322,10 @@ interface ChatFormProps {
     event?: { preventDefault?: () => void },
     options?: { experimental_attachments?: FileList }
   ) => void
-  children: (props: {
+  children: ReactElement | ((props: {
     files: File[] | null
     setFiles: React.Dispatch<React.SetStateAction<File[] | null>>
-  }) => ReactElement
+  }) => ReactElement)
 }
 
 export const ChatForm = forwardRef<HTMLFormElement, ChatFormProps>(
@@ -338,9 +343,13 @@ export const ChatForm = forwardRef<HTMLFormElement, ChatFormProps>(
       setFiles(null)
     }
 
+    const childContent = typeof children === 'function' 
+      ? children({ files, setFiles })
+      : children
+
     return (
       <form ref={ref} onSubmit={onSubmit} className={className}>
-        {children({ files, setFiles })}
+        {childContent}
       </form>
     )
   }

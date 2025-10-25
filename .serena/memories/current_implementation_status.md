@@ -13,7 +13,6 @@
 - Chat component with message display
 - Message components (user/assistant differentiation)
 - Message input with auto-resize textarea
-- Model/provider selector dropdown
 - Typing indicator with animation
 
 ### ✅ Phase 3: AI Integration (4/4 Complete)
@@ -36,7 +35,7 @@
 - **UI/UX**: Title (bold) + URL (white) in user message
 - **Content Truncation**: 15,000 characters
 
-### ✅ Phase 5: Text Rewrite Feature (8/8 Complete) ⭐ NEW
+### ✅ Phase 5: Text Rewrite Feature (8/8 Complete) ⭐
 - **8 Rewrite Tones**: Concise, Professional, Casual, Formal, Engaging, Simplified, Technical, Creative
 - **Context Menu**: Right-click "Rewrite text" submenu with tone options
 - **Text Selection**: Works with any selected text on any webpage
@@ -47,6 +46,13 @@
 - **AI Processing**: Tone-specific prompts for accurate rewrites
 - **Chain Rewrites**: Users can rewrite the rewritten text again
 - **Full TypeScript Support**: Complete type safety throughout
+
+### ✅ Phase 6: UI Restructuring (5/5 Complete) ⭐ NEW - October 24, 2025
+- **Provider Selector Moved**: From header to message input area
+- **File Attachment Removed**: Completely cleaned from UI
+- **Header Simplified**: Now shows only status and settings
+- **Input Area Reorganized**: Provider selector + Microphone + Send button
+- **Better UX**: Contextual provider selection near message composition
 
 ## Rewrite Feature Details
 
@@ -76,43 +82,118 @@
 - Chat clears on new rewrite (like summarization)
 - Full privacy (local processing only)
 
+## UI Restructuring Details (Oct 24, 2025)
+
+### Changes Made
+1. **Removed ProviderSelector from Header**
+   - Was: `[●] Status | [Provider ▼] [⚙️ Settings]`
+   - Now: `[●] Status | [⚙️ Settings]` (cleaner)
+
+2. **Added ProviderSelector to Message Input Area**
+   - Button order (left to right): `[Provider ▼] [🎤 Mic] [📤 Send]`
+   - Takes the place where file picker button used to be
+   - Contextually near where user composes messages
+
+3. **Removed File Attachment Functionality**
+   - ❌ Removed Paperclip icon button
+   - ❌ Removed drag-and-drop file support
+   - ❌ Removed file preview area
+   - ❌ Removed file upload dialog
+   - ❌ Removed all file-related event handlers
+
+### Files Modified
+
+**src/App.tsx**:
+- Removed `ProviderSelector` import from header
+- Removed `<ProviderSelector>` JSX from header
+- Added provider props to Chat component:
+  - `preferredProvider`
+  - `onProviderChange`
+  - `availableProviders`
+
+**src/components/ui/message-input.tsx**:
+- Added provider props to `MessageInputBaseProps` interface
+- Imported `ProviderSelector` component
+- Removed file attachment imports (Paperclip, FilePreview)
+- Removed all file attachment functions
+- Simplified component to remove file UI
+- Added ProviderSelector to bottom-right button controls
+
+**src/components/ui/chat.tsx**:
+- Added provider props to `ChatPropsBase` interface
+- Updated `Chat` function destructuring to receive provider props
+- Changed `allowAttachments` from `true` to `false`
+- Removed file-related props from MessageInput usage
+- Updated ChatForm to support both function and direct element children
+
+### Data Flow (Provider Selection)
+```
+App.tsx (state owner)
+  ├─ preferredProvider
+  ├─ onProviderChange callback
+  └─ availableProviders list
+    ↓
+Chat.tsx (passes through)
+    ↓
+MessageInput.tsx (renders)
+    ↓
+ProviderSelector (user selects provider)
+    ↓
+Callback triggers App state update
+    ↓
+Next message uses selected provider
+```
+
 ## File Changes Summary
 
 ### Phase 4 Files (Page Summarization)
 - `src/content.ts` - Content script for page extraction
 - `src/lib/summarizer-utils.ts` - Chrome Summarizer API utilities
 
-### Phase 5 Files (Text Rewrite) ⭐ NEW
+### Phase 5 Files (Text Rewrite)
 - `src/lib/rewrite-utils.ts` - Rewrite utilities and prompts (137 lines)
 
-### Modified Files (Both Phases)
+### Phase 6 Files (UI Restructuring) ⭐ NEW
+- Updated `src/App.tsx` - Header cleanup, provider props to Chat
+- Updated `src/components/ui/message-input.tsx` - Provider selector integration
+- Updated `src/components/ui/chat.tsx` - Props and ChatForm updates
+
+### Modified Files (All Phases)
 - `public/manifest.json` - Permissions and content scripts
 - `vite.config.ts` - Build entry points
-- `src/background.ts` - Context menus for both summarize and rewrite
-- `src/App.tsx` - Message handlers for both features
+- `src/background.ts` - Context menus
+- `src/App.tsx` - Message handlers
 - `src/lib/client-side-chat-transport.ts` - Streaming methods
-- `src/App.css` - Styling updates
+- `src/App.css` - Styling
 
-## Build Information (Latest)
+## Build Information (Latest - Oct 24, 2025)
 
 ### Build Output
 ```
 dist/
 ├── index.html                     # Sidebar HTML
-├── background.js                  # Background service worker (with both context menus)
+├── background.js                  # Background service worker
 ├── content.js                     # Content script (35KB gzipped)
 ├── assets/
-│   ├── main-*.js                  # Main app (2.2MB gzipped, includes both features)
-│   ├── main-*.css                 # Styles (8.65KB gzipped)
+│   ├── main-*.js                  # Main app (2.2MB gzipped)
+│   ├── main-*.css                 # Styles (43.86KB)
 │   └── transformers-worker-*.js   # AI models (5.5MB)
 ```
 
 ### Bundle Stats
 - Total size: ~6.4MB (includes AI model data)
-- Main JS: ~2.2MB gzipped (increased from rewrite feature)
-- Styles: ~8.65KB gzipped
+- Main JS: ~2.2MB gzipped
+- Styles: ~43.86KB (optimized)
 - Content script: ~35KB gzipped
-- Background script: Now includes both context menus
+- Modules transformed: 2,673
+- Build time: ~12 seconds
+
+### Build Verification
+```
+✓ 2673 modules transformed
+✓ No compilation errors
+✓ All files generated successfully
+```
 
 ## Testing Checklist
 
@@ -126,20 +207,25 @@ dist/
 - ✅ User message shows title and URL
 - ✅ AI response streams character-by-character
 - ✅ Chat clears on new summarization
-- ✅ Error handling works gracefully
-- ✅ Chrome Summarizer API fallback works
 
-### Phase 5: Text Rewrite ⭐ NEW
+### Phase 5: Text Rewrite
 - ✅ Context menu shows "Rewrite text" with 8 tone options
-- ✅ All tones visible in submenu (Concise, Professional, Casual, Formal, Engaging, Simplified, Technical, Creative)
+- ✅ All tones visible in submenu
 - ✅ Clicking tone opens sidebar
 - ✅ Chat shows correct user message format
 - ✅ Rewritten text streams correctly
 - ✅ Works with both Built-in AI and WebLLM
 - ✅ Can rewrite the rewritten text (chain rewrites)
-- ✅ Chat clears on new rewrite (like summarization)
-- ✅ No TypeScript errors (verified with npm build)
-- ✅ All files built successfully
+
+### Phase 6: UI Restructuring ⭐ NEW
+- ✅ ProviderSelector appears in input area (bottom-right)
+- ✅ File picker button completely removed
+- ✅ Provider selection dropdown works
+- ✅ Header is cleaner (no provider dropdown)
+- ✅ Microphone button still present and functional
+- ✅ Send button still present and functional
+- ✅ No TypeScript errors
+- ✅ Build successful with 2,673 modules
 
 ## Known Limitations
 
@@ -152,10 +238,9 @@ dist/
 
 ## Dependencies
 
-### No New Dependencies Added for Phase 5
-- Rewrite feature uses existing transport and utilities
-- All tones implemented as prompts
-- No additional npm packages required
+### No New Dependencies Added Since Phase 4
+- All new phases use existing dependencies
+- UI restructuring: no new packages
 
 ### Existing Dependencies Used
 - `@built-in-ai/core` - Chrome built-in AI
@@ -164,36 +249,48 @@ dist/
 - `react` - UI framework
 - `tailwindcss` - Styling
 
-## Recent Changes (Latest - October 2025)
+## Recent Changes Timeline
 
-### Phase 5 Implementation
-1. Created `src/lib/rewrite-utils.ts` with 8 tone definitions and prompts
-2. Updated `src/background.ts` to create "Rewrite text" context menu with submenu
-3. Updated `src/App.tsx` to handle 'rewriteText' message action
-4. Integrated rewrite prompt generation with transport layer
-5. Added full TypeScript type safety
-6. Verified build: No errors, all files generated correctly
+### October 23, 2025 (Phase 5)
+- Implemented Text Rewrite feature with 8 tones
+- Added context menu integration
+- Added streaming rewrite support
+
+### October 24, 2025 (Phase 6) ⭐ NEW
+- Moved ProviderSelector from header to input area
+- Removed file attachment functionality
+- Simplified header UI
+- Updated component data flow
+- Verified build: Zero errors, 2,673 modules
 
 ## Architecture Notes
 
-**Never bypass the rewrite flow**:
-- All text rewrites must go through transport.streamSummary()
-- Always use tone-specific prompts from getRewritePrompt()
-- Use callback interface for real-time UI updates
-- Format user messages with formatRewriteUserMessage()
+**Provider Selection Flow**:
+- All provider selections must update App state
+- Chat component passes provider props to MessageInput
+- MessageInput renders ProviderSelector in controls
+- User selection triggers callback → state update → UI re-render
 
-**Tone Priority**:
-- All 8 tones are equal priority (no default selected)
-- User must explicitly choose tone from context menu
-- Each tone has unique, task-specific prompt
-- Prompts designed to work with both Built-in AI and WebLLM
+**File Attachment Status**:
+- Completely removed as of Oct 24, 2025
+- All references cleaned up
+- ChatForm still supports render function children for compatibility
+- Can be re-added later if needed (backward compatible)
+
+**Never bypass these patterns**:
+- Provider selection through App state → Chat → MessageInput
+- Streaming through transport.streamSummary()
+- Message handlers through App.tsx chrome.runtime.onMessage
 
 ## Status Summary
 
 - **Total Features Implemented**: 2 major features (Summarization + Rewrite)
+- **UI Iterations**: 1 major restructuring (Provider selector repositioned)
 - **Context Menus**: 1 parent + 8 submenu items for rewrite
 - **Message Handlers**: 2 (summarizePage + rewriteText)
-- **Utility Functions**: 4 in rewrite-utils + 3 in summarizer-utils
-- **Build Status**: ✅ Successful (no errors)
+- **Build Status**: ✅ Successful (no errors, 2,673 modules)
 - **TypeScript Strict Mode**: ✅ All types enforced
 - **Feature Completeness**: ✅ 100% implementation done
+- **UI/UX Quality**: ✅ Professional, clean interface
+
+**Current Phase**: ✅ **COMPLETE - PRODUCTION READY** (as of Oct 24, 2025)

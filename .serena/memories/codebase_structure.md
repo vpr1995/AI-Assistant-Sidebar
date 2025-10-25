@@ -46,28 +46,38 @@ chrome-extension/
 │   │       ├── chat-message.tsx           # Message display
 │   │       ├── collapsible.tsx            # Collapsible sections
 │   │       ├── copy-button.tsx            # Copy to clipboard
-│   │       ├── file-preview.tsx           # File preview
+│   │       ├── download-progress-dialog.tsx # Download progress modal
+│   │       ├── file-preview.tsx           # File preview (DEPRECATED - unused)
 │   │       ├── interrupt-prompt.tsx       # Interrupt UI
 │   │       ├── markdown-renderer.tsx      # Markdown to HTML
-│   │       ├── message-input.tsx          # Input component
+│   │       ├── message-input.tsx          # Input component (now with ProviderSelector)
 │   │       ├── message-list.tsx           # Message list with scroll
 │   │       ├── model-loading-indicator.tsx # Loading states
-│   │       ├── prompt-suggestions.tsx    # Prompt suggestions
-│   │       ├── provider-selector.tsx      # Provider dropdown
+│   │       ├── prompt-suggestions.tsx     # Prompt suggestions
+│   │       ├── provider-selector.tsx      # Provider dropdown (NOW IN INPUT AREA)
+│   │       ├── settings-menu.tsx          # Settings dropdown (theme, reset)
 │   │       ├── sonner.tsx                 # Toast notifications
-│   │       └── typing-indicator.tsx       # Typing animation
+│   │       ├── theme-context.ts           # Theme context definition
+│   │       ├── theme-provider.tsx         # Theme provider wrapper
+│   │       ├── typing-indicator.tsx       # Typing animation
+│   │       └── download-progress-dialog.tsx # Model download progress
 │   │
 │   ├── hooks/                # Custom React hooks
 │   │   ├── use-audio-recording.ts         # Audio recording
 │   │   ├── use-auto-scroll.ts             # Auto-scroll chat
 │   │   ├── use-autosize-textarea.ts       # Textarea resize
 │   │   ├── use-copy-to-clipboard.ts       # Copy handler
-│   │   └── use-provider-context.tsx       # Provider context
+│   │   ├── use-provider-context.tsx       # Provider context
+│   │   ├── use-theme-context.tsx          # Theme context hook
+│   │   └── use-theme.ts                   # Theme state management
 │   │
 │   └── lib/                  # Utility libraries
 │       ├── audio-utils.ts                 # Audio utilities
 │       ├── client-side-chat-transport.ts  # AI transport with streaming
-│       └── utils.ts                       # General utilities (cn, etc)
+│       ├── rewrite-utils.ts               # Text rewrite utilities
+│       ├── summarizer-utils.ts            # Summarization logic
+│       ├── utils.ts                       # General utilities (cn, etc)
+│       └── youtube-utils.ts               # YouTube utilities
 │
 └── dist/                     # Built output (generated)
     ├── index.html
@@ -85,12 +95,20 @@ chrome-extension/
   - Chat message handling
   - Page summarization request handler
   - Message streaming and display
+  - Provider state management (for bottom input area)
 - **Key Features**:
   - `detectActiveProvider()` - Detect which AI provider to use
   - Chat state management with useChat hook
   - `handleMessage()` - Handles summarization requests from background
   - `transport.streamSummary()` - Gets AI summary with streaming
   - Auto-clear chat on new summarization
+  - Provider state passed to Chat component → MessageInput
+
+**Header**:
+```
+[●] Chrome Built-in AI | [⚙️ Settings]
+(Provider selector moved to input area)
+```
 
 ### src/background.ts
 - **Context Menu Creation**: Creates "Summarize this page" option
@@ -141,6 +159,48 @@ chrome-extension/
   - `isGenerating` - Loading state
   - `stop` - Abort generation
   - `append` - Add message directly
+  - **NEW** `preferredProvider` - Current AI provider
+  - **NEW** `onProviderChange` - Provider change callback
+  - **NEW** `availableProviders` - Available providers list
+- **Changes**:
+  - `allowAttachments` set to `false` (file attachment removed)
+  - Props passed to MessageInput for ProviderSelector
+  - ChatForm now supports both function and direct element children
+
+### src/components/ui/message-input.tsx
+- **Input Component**: Text input with controls
+- **Changes** (Oct 24, 2025):
+  - **REMOVED** File attachment button (Paperclip icon)
+  - **REMOVED** All drag-and-drop handlers
+  - **REMOVED** File preview area
+  - **ADDED** ProviderSelector dropdown in controls
+  - **ADDED** Props: `preferredProvider`, `onProviderChange`, `availableProviders`
+- **Control Order** (bottom-right):
+  1. ProviderSelector dropdown (replaces file picker)
+  2. Microphone button
+  3. Send/Stop button
+- **Features**:
+  - Voice input via microphone
+  - Streaming message submission
+  - Provider selection before sending
+
+### src/components/ui/provider-selector.tsx
+- **Provider Dropdown**: Select AI provider (Built-in AI or WebLLM)
+- **Location**: NOW IN MESSAGE INPUT AREA (moved from header)
+- **Previous Location**: Header (removed)
+- **Functionality**:
+  - Dropdown to select provider
+  - Shows available providers
+  - Triggers re-detection if provider unavailable
+
+### src/components/ui/settings-menu.tsx
+- **Settings Dropdown**: Theme selector and reset button
+- **Location**: Header (right side)
+- **Features**:
+  - Light/Dark/System theme selection with checkmark
+  - Reset Chat button
+  - Animated dropdown with spring physics
+  - Keyboard navigation support
 
 ### src/components/ui/chat-message.tsx
 - **Message Display**: Renders user and assistant messages
@@ -193,7 +253,12 @@ chrome-extension/
 
 ```
 <App>
-  ├── Header (status, provider selector, reset)
+  ├── Header
+  │   ├── [●] Status indicator
+  │   ├── Provider name display
+  │   └── <SettingsMenu>
+  │       └── Theme selector + Reset
+  │
   ├── <Chat>
   │   ├── <MessageList>
   │   │   ├── <ChatMessage> (user)
@@ -206,13 +271,15 @@ chrome-extension/
   │   │
   │   ├── <MessageInput>
   │   │   ├── textarea with auto-resize
-  │   │   ├── model selector (WebLLM only)
-  │   │   └── submit button
+  │   │   ├── <ProviderSelector>  ← NOW HERE
+  │   │   ├── Microphone button
+  │   │   └── Submit button
   │   │
   │   └── Suggestions (empty state)
   │
   └── Modals
-      └── Various dialogs (error, settings, etc)
+      ├── <DownloadProgressDialog> (model download)
+      └── Other dialogs
 ```
 
 ## Data Flow
@@ -267,6 +334,28 @@ Update AI message with accumulated text
 Typing animation plays as text arrives
 ```
 
+### Provider Selection Flow
+```
+App.tsx manages state:
+- preferredProvider
+- availableProviders
+- onProviderChange callback
+    ↓
+Passed to <Chat> component
+    ↓
+<Chat> passes to <MessageInput>
+    ↓
+<MessageInput> renders <ProviderSelector>
+    ↓
+User selects provider in input area
+    ↓
+Callback triggers App.setPreferredProvider()
+    ↓
+State updates → UI re-renders
+    ↓
+Next message uses selected provider
+```
+
 ## Type Definitions
 
 ### Message Type
@@ -301,6 +390,11 @@ interface PageContent {
 }
 ```
 
+### Provider Type
+```typescript
+type Provider = 'built-in-ai' | 'web-llm' | 'auto'
+```
+
 ## Build Output Structure
 
 ```
@@ -327,12 +421,29 @@ dist/
 
 ## Module Count Breakdown
 
-- **Main app**: ~2,663 modules
+- **Main app**: ~2,673 modules (as of Oct 24, 2025)
 - Largest modules:
   - AI SDK and providers
   - React and dependencies
   - Markdown rendering
   - @mozilla/readability (~330 modules saved by switching from shiki)
+
+## Recent Changes (October 24, 2025)
+
+### UI Restructuring - Model Selector Moved to Bottom
+
+**What Changed**:
+1. **Provider Selector** moved from header to message input area
+2. **File attachment** completely removed
+3. **Header cleaner** - shows only status + settings
+4. **Input area reorganized** - provider selector + mic + send
+
+**Files Modified**:
+- `src/App.tsx` - Removed ProviderSelector from header, passes provider props to Chat
+- `src/components/ui/message-input.tsx` - Added ProviderSelector, removed file picker
+- `src/components/ui/chat.tsx` - Updated props, disabled attachments
+
+**Result**: Cleaner header, contextual provider selection near input area
 
 ## Key Configuration Files
 

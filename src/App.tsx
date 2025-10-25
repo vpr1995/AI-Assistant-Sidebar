@@ -12,7 +12,6 @@ import {
 } from '@built-in-ai/web-llm'
 import { ClientSideChatTransport } from '@/lib/client-side-chat-transport'
 import { Chat } from '@/components/ui/chat'
-import { ProviderSelector } from '@/components/ui/provider-selector'
 import { SettingsMenu } from '@/components/ui/settings-menu'
 import { DownloadProgressDialog } from '@/components/ui/download-progress-dialog'
 import type { Message } from '@/components/ui/chat-message'
@@ -570,14 +569,6 @@ Provide a clear summary that captures the main points and key takeaways from the
           <span className="font-medium text-sm">{getProviderLabel()}</span>
         </div>
         <div className="flex items-center gap-2">
-          <ProviderSelector
-            value={preferredProvider}
-            onChange={(provider) => {
-              console.log('[App] User selected provider:', provider)
-              setPreferredProvider(provider)
-            }}
-            availableProviders={availableProviders}
-          />
           <SettingsMenu
             onReset={() => window.location.reload()}
           />
@@ -634,6 +625,12 @@ Provide a clear summary that captures the main points and key takeaways from the
           append={append}
           showLoadingStatus={false}
           isSummarizeOrRewriteLoading={isSummarizeOrRewriteLoading}
+          preferredProvider={preferredProvider}
+          onProviderChange={(provider) => {
+            console.log('[App] User selected provider:', provider)
+            setPreferredProvider(provider)
+          }}
+          availableProviders={availableProviders}
           suggestions={[
             'What is the weather in San Francisco?',
             'Explain step-by-step how to solve this math problem: If x² + 6x + 9 = 25, what is x?',
