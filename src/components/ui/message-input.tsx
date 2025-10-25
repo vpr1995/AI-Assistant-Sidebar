@@ -63,6 +63,13 @@ export function MessageInput({
     },
   })
 
+  // If generation starts while the mic is active, stop recording to avoid conflicts
+  useEffect(() => {
+    if (isGenerating && isListening) {
+      stopRecording()
+    }
+  }, [isGenerating, isListening, stopRecording])
+
   useEffect(() => {
     if (!isGenerating) {
       setShowInterruptPrompt(false)
@@ -149,10 +156,12 @@ export function MessageInput({
           <Button
             type="button"
             variant="outline"
-            className={cn("h-8 w-8", isListening && "text-primary")}
+            className={cn("h-8 w-8", isListening && !isGenerating && "text-primary")}
             aria-label="Voice input"
             size="icon"
             onClick={toggleListening}
+            disabled={isGenerating}
+            title={isGenerating ? "Voice input disabled while generating" : "Voice input"}
           >
             <Mic className="h-4 w-4" />
           </Button>
@@ -247,7 +256,7 @@ function RecordingPrompt({ isVisible, onStopRecording }: RecordingPromptProps) {
         >
           <span className="mx-2.5 flex items-center">
             <Info className="mr-2 h-3 w-3" />
-            Click to finish recording
+            Click to finish Transcribing
           </span>
         </motion.div>
       )}

@@ -49,5 +49,11 @@
     "https://youtube.com/*",
     "https://www.youtube-nocookie.com/*"
   ],
+  "web_accessible_resources": [
+    {
+      "resources": ["permission.html", "permission-request.js"],
+      "matches": ["<all_urls>"]
+    }
+  ],
   "trial_tokens": ["AnqLMmF6bBX+CdhPeRlVgK9Q9jOmByVoQXlm5wSf0odRkqT0+fDtdKLIlxtAHf/X6xYsliSyUh4LCmJaCbOj+wwAAABxeyJvcmlnaW4iOiJjaHJvbWUtZXh0ZW5zaW9uOi8vaGlocGJqbGZvamFtY2tqbW5zZm9uYmhsaGdhZ2RsY2UiLCJmZWF0dXJlIjoiQUlQcm9vZnJlYWRlckFQSSIsImV4cGlyeSI6MTc3OTE0ODgwMH0="]
 }

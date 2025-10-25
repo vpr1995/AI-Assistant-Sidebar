@@ -168,4 +168,28 @@ function extractFallbackContent() {
   };
 }
 
+/**
+ * Inject iframe for microphone permission request
+ * This iframe will trigger the browser's permission dialog
+ */
+export const injectMicrophonePermissionIframe = () => {
+  // Check if iframe already exists
+  const existingIframe = document.getElementById('permissionsIFrame');
+  if (existingIframe) {
+    console.log('[Content Script] Permission iframe already exists');
+    return;
+  }
+
+  const iframe = document.createElement('iframe');
+  iframe.setAttribute('hidden', 'hidden');
+  iframe.setAttribute('id', 'permissionsIFrame');
+  iframe.setAttribute('allow', 'microphone');
+  iframe.src = chrome.runtime.getURL('/permission.html');
+  document.body.appendChild(iframe);
+  console.log('[Content Script] Permission iframe injected');
+};
+
+// Inject the iframe when content script loads
+injectMicrophonePermissionIframe();
+
 console.log('[Content Script] Loaded and ready');
