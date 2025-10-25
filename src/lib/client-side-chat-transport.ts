@@ -543,7 +543,7 @@ export class ClientSideChatTransport implements ChatTransport<UIMessage> {
     this.webLLMModelInitializing = (async () => {
       try {
         this.cachedWebLLMModel = webLLM(modelId, {
-          worker: new Worker(new URL('../transformers-worker.ts', import.meta.url), {
+          worker: new Worker(new URL('../webllm-worker.ts', import.meta.url), {
             type: 'module',
           }),
         })
@@ -562,7 +562,7 @@ export class ClientSideChatTransport implements ChatTransport<UIMessage> {
     abortSignal: AbortSignal | undefined
   ): Promise<ReadableStream<UIMessageChunk>> {
     // Use SmolLM2 360M model for TransformersJS (same as recommended in docs)
-    const modelId = 'HuggingFaceTB/SmolLM2-360M-Instruct'
+    const modelId = 'onnx-community/Llama-3.2-1B-Instruct-q4f16'
     
     // Get or initialize the model (with caching)
     const model = await this.getOrInitializeTransformersJSModel(modelId)
@@ -917,7 +917,7 @@ export class ClientSideChatTransport implements ChatTransport<UIMessage> {
       }
     } else {
       // TransformersJS
-      const modelId = 'HuggingFaceTB/SmolLM2-360M-Instruct'
+      const modelId = 'onnx-community/Llama-3.2-1B-Instruct-q4f16'
       const model = await this.getOrInitializeTransformersJSModel(modelId)
       
       const result = streamText({
