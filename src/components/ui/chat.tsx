@@ -40,6 +40,8 @@ interface ChatPropsBase {
   preferredProvider?: "built-in-ai" | "web-llm" | "transformers-js" | "auto"
   onProviderChange?: (provider: "built-in-ai" | "web-llm" | "transformers-js" | "auto") => void
   availableProviders?: ("built-in-ai" | "web-llm" | "transformers-js")[]
+  attachedImage?: { file: File; preview: string } | null
+  onAttachImage?: (image: { file: File; preview: string } | null) => void
 }
 
 interface ChatPropsWithoutSuggestions extends ChatPropsBase {
@@ -72,6 +74,8 @@ export function Chat({
   preferredProvider,
   onProviderChange,
   availableProviders,
+  attachedImage,
+  onAttachImage,
 }: ChatProps) {
   const lastMessage = messages[messages.length - 1]
   const isEmpty = messages.length === 0
@@ -251,6 +255,8 @@ export function Chat({
           preferredProvider={preferredProvider}
           onProviderChange={onProviderChange}
           availableProviders={availableProviders}
+          attachedImage={attachedImage}
+          onAttachImage={onAttachImage}
         />
       </ChatForm>
     </ChatContainer>

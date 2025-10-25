@@ -112,24 +112,45 @@ export class ClientSideChatTransport implements ChatTransport<UIMessage> {
       messageId: string | undefined
     } & ChatRequestOptions
   ): Promise<ReadableStream<UIMessageChunk>> {
-    const { messages, abortSignal } = options
+    const { messages, abortSignal, body } = options
 
     // Detect provider on first use (if not already detected)
     if (!this.provider) {
       console.log('[ClientSideChatTransport] First message, detecting provider...')
       this.provider = await this.selectProvider()
       console.log('[ClientSideChatTransport] Provider selected:', this.provider)
-      // Notify about the provider change
       if (this.providerChangeCallback) {
         this.providerChangeCallback(this.provider)
       }
-    } else {
-      console.log('[ClientSideChatTransport] Using previously detected provider:', this.provider)
     }
 
+    // Convert UI messages to model messages
     const prompt: ModelMessage[] = convertToModelMessages(messages) ?? []
     console.log('[ClientSideChatTransport] Prompt messages:', prompt.length)
+    
+    // If we have an image attachment for built-in-ai, add it to the last message
+    const imageAttachment = (body as Record<string, unknown> | undefined)?.imageAttachment as 
+      { mediaType: string; data: string } | undefined
+    if (imageAttachment && this.provider === 'built-in-ai' && prompt.length > 0) {
+      const lastMessage = prompt[prompt.length - 1]
+      
+      if (lastMessage && lastMessage.role === 'user') {
+        // Extract user text from the converted message
+        const userText = typeof lastMessage.content === 'string' ? lastMessage.content : ''
+        
+        console.log('[ClientSideChatTransport] Adding image to message:', imageAttachment.mediaType)
+        
+        // Build multimodal content: text + file
+        lastMessage.content = [
+          { type: 'text', text: userText },
+          { type: 'file', mediaType: imageAttachment.mediaType, data: imageAttachment.data }
+        ] as Array<{ type: 'text'; text: string } | { type: 'file'; mediaType: string; data: string }>
+        
+        console.log('[ClientSideChatTransport] ✅ Multimodal message:', userText, imageAttachment.mediaType)
+      }
+    }
 
+    // Route to appropriate provider
     if (this.provider === 'built-in-ai') {
       console.log('[ClientSideChatTransport] Calling handleBuiltInAI')
       return this.handleBuiltInAI(prompt, abortSignal)

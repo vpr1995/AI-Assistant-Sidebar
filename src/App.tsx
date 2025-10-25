@@ -68,17 +68,21 @@ async function detectActiveProvider(): Promise<'built-in-ai' | 'web-llm' | 'tran
 }
 
 // Convert UIMessage to the Message format expected by Chat component
-function convertToMessage(uiMessage: UIMessage): Message {
+function convertToMessage(uiMessage: UIMessage, attachments?: Map<string, { url: string; name: string; contentType: string }>): Message {
   // Extract text content from parts
   const textContent = uiMessage.parts
     ?.filter((part) => part.type === 'text')
     .map((part) => (part as { type: 'text'; text: string }).text)
     .join('') || ''
 
+  // Check if this message has an attachment
+  const attachment = attachments?.get(uiMessage.id)
+  
   return {
     id: uiMessage.id,
     role: uiMessage.role,
     content: textContent,
+    experimental_attachments: attachment ? [attachment] : undefined,
   }
 }
 
@@ -102,6 +106,9 @@ function App() {
   const [dismissedWebLLMInfo, setDismissedWebLLMInfo] = useState(false)
   const [dismissedTransformersJSInfo, setDismissedTransformersJSInfo] = useState(false)
   const [isSummarizeOrRewriteLoading, setIsSummarizeOrRewriteLoading] = useState(false)
+  const [attachedImage, setAttachedImage] = useState<{ file: File; preview: string } | null>(null)
+  const [messageAttachments, setMessageAttachments] = useState<Map<string, { url: string; name: string; contentType: string }>>(new Map())
+  const [pendingAttachment, setPendingAttachment] = useState<{ url: string; name: string; contentType: string } | null>(null)
   
   // Initialize transport once using useMemo to ensure it's available during render
   // useMemo prevents the double-initialization issue in React Strict Mode
@@ -206,7 +213,25 @@ function App() {
   const isLoading = status === 'submitted' || status === 'streaming'
 
   // Convert messages to the format expected by Chat component
-  const messages = rawMessages.map(convertToMessage)
+  const messages = rawMessages.map((msg) => convertToMessage(msg, messageAttachments))
+
+  // Associate pending attachment with the latest user message
+  useEffect(() => {
+    if (pendingAttachment && rawMessages.length > 0) {
+      // Find the latest user message
+      const latestUserMessage = [...rawMessages].reverse().find(msg => msg.role === 'user')
+      
+      if (latestUserMessage && !messageAttachments.has(latestUserMessage.id)) {
+        console.log('[App] Associating attachment with message:', latestUserMessage.id)
+        setMessageAttachments(prev => {
+          const newMap = new Map(prev)
+          newMap.set(latestUserMessage.id, pendingAttachment)
+          return newMap
+        })
+        setPendingAttachment(null)
+      }
+    }
+  }, [rawMessages, pendingAttachment, messageAttachments])
 
   // Signal to background script that sidebar is ready to receive messages
   useEffect(() => {
@@ -257,6 +282,8 @@ function App() {
           
           // Clear existing messages when starting a new summarization
           setMessages([]);
+          // Clear any attached image
+          setAttachedImage(null);
           
           // Set loading state to show typing indicator
           setIsSummarizeOrRewriteLoading(true);
@@ -352,6 +379,8 @@ Provide a clear, well-structured summary focusing on the main points and key inf
           
           // Clear existing messages when starting a new rewrite
           setMessages([]);
+          // Clear any attached image
+          setAttachedImage(null);
           
           // Set loading state to show typing indicator
           setIsSummarizeOrRewriteLoading(true);
@@ -419,14 +448,16 @@ Provide a clear, well-structured summary focusing on the main points and key inf
           setIsSummarizeOrRewriteLoading(false);
           alert('Failed to rewrite text. Please try again.');
         }
-      } else if (message.action === 'summarizeYouTubeVideo' && message.data) {
-        console.log('[App] Received YouTube video summarization request:', message.data);
+      } else if (message.action === 'summarizeYoutube' && message.data) {
+        console.log('[App] Received summarize YouTube request:', message.data);
         
         try {
           const { title = '', content = '', url = '', byline = '' } = message.data;
           
           // Clear existing messages when starting a new summarization
           setMessages([]);
+          // Clear any attached image
+          setAttachedImage(null);
           
           // Set loading state to show typing indicator
           setIsSummarizeOrRewriteLoading(true);
@@ -540,13 +571,62 @@ Provide a clear summary that captures the main points and key takeaways from the
     }
   }, [rawMessages, isLoading])
 
-  const handleSubmit = (event?: { preventDefault?: () => void }) => {
+  const handleSubmit = async (event?: { preventDefault?: () => void }) => {
     event?.preventDefault?.()
 
-    if (!input.trim()) return
+    if (!input.trim() && !attachedImage) return
 
-    sendMessage({ text: input })
+    const messageText = input.trim() 
+      ? input
+      : (attachedImage ? '[Image attached for analysis]' : '')
+    
+    // If we have an image and built-in-ai is active, read it and pass with message
+    if (attachedImage && activeProvider === 'built-in-ai') {
+      try {
+        // Read image as base64
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload = () => resolve(reader.result as string)
+          reader.onerror = () => reject(new Error('Failed to read image'))
+          reader.readAsDataURL(attachedImage.file)
+        })
+        
+        // Extract mediaType and base64
+        const parts = dataUrl.split(',')
+        const header = parts[0] || ''
+        const base64Data = parts[1] || ''
+        const mediaType = header.match(/data:([^;]+)/)?.[1] || 'image/png'
+        
+        // Store attachment for the next user message
+        setPendingAttachment({
+          url: dataUrl,
+          name: attachedImage.file.name,
+          contentType: mediaType
+        })
+        
+        // Pass image data with the message via body option
+        sendMessage({ 
+          text: messageText
+        }, {
+          body: {
+            imageAttachment: {
+              mediaType,
+              data: base64Data
+            }
+          }
+        })
+      } catch (error) {
+        console.error('[App] Error reading image:', error)
+        // Send without image on error
+        sendMessage({ text: messageText })
+      }
+    } else {
+      sendMessage({ text: messageText })
+    }
+    
     setInput('')
+    // Clear image after sending
+    setAttachedImage(null)
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -669,6 +749,8 @@ Provide a clear summary that captures the main points and key takeaways from the
             setPreferredProvider(provider)
           }}
           availableProviders={availableProviders}
+          attachedImage={attachedImage}
+          onAttachImage={setAttachedImage}
           suggestions={[
             'What is the weather in San Francisco?',
             'Explain step-by-step how to solve this math problem: If x² + 6x + 9 = 25, what is x?',

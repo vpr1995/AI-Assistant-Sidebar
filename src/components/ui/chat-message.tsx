@@ -108,6 +108,11 @@ interface FilePart {
   data: string
 }
 
+interface ImagePart {
+  type: "image"
+  image: string
+}
+
 interface StepStartPart {
   type: "step-start"
 }
@@ -118,6 +123,7 @@ type MessagePart =
   | ToolInvocationPart
   | SourcePart
   | FilePart
+  | ImagePart
   | StepStartPart
 
 export interface Message {
@@ -165,6 +171,10 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
   })
 
   if (isUser) {
+    // Check if content contains an image data URL
+    const imageDataUrl = extractImageDataUrl(content)
+    const textContent = removeImageDataUrl(content)
+    
     return (
       <div
         className={cn("flex flex-col", isUser ? "items-end" : "items-start")}
@@ -176,9 +186,23 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
             })}
           </div>
         ) : null}
+        
+        {/* Display image if present */}
+        {imageDataUrl && (
+          <div className="mb-2 flex flex-end">
+            <img 
+              src={imageDataUrl}
+              alt="Attached"
+              className="max-h-48 max-w-48 rounded border border-primary-foreground/20 object-cover"
+            />
+          </div>
+        )}
 
         <div className={cn(chatBubbleVariants({ isUser, animation }))}>
-          <MarkdownRenderer>{content}</MarkdownRenderer>
+          {textContent.trim() && <MarkdownRenderer>{textContent}</MarkdownRenderer>}
+          {!textContent.trim() && imageDataUrl && (
+            <span className="text-xs opacity-75">📷 Image attached</span>
+          )}
         </div>
 
         {showTimeStamp && createdAt ? (
@@ -274,9 +298,14 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
 }
 
 function dataUrlToUint8Array(data: string) {
-  const base64 = data.split(",")[1]
-  const buf = Buffer.from(base64, "base64")
-  return new Uint8Array(buf)
+  const base64 = data.split(",")[1] || ""
+  // Use browser-native atob() instead of Node.js Buffer
+  const binaryString = atob(base64)
+  const bytes = new Uint8Array(binaryString.length)
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i)
+  }
+  return bytes
 }
 
 const ReasoningBlock = ({ part }: { part: ReasoningPart }) => {
@@ -400,4 +429,15 @@ function ToolCall({
       })}
     </div>
   )
+}
+
+function extractImageDataUrl(content: string): string | null {
+  const dataUrlRegex = /data:image\/[a-z]+;base64,[A-Za-z0-9+/=]+/
+  const match = content.match(dataUrlRegex)
+  return match ? match[0] : null
+}
+
+function removeImageDataUrl(content: string): string {
+  const dataUrlRegex = /data:image\/[a-z]+;base64,[A-Za-z0-9+/=]+/
+  return content.replace(dataUrlRegex, "").trim()
 }

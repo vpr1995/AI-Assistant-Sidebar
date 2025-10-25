@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
-import { ArrowUp, Info, Loader2, Mic, Square } from "lucide-react"
+import { ArrowUp, Info, Loader2, Mic, Square, Image as ImageIcon, X } from "lucide-react"
 import { omit } from "remeda"
 
 import { cn } from "@/lib/utils"
@@ -12,6 +12,7 @@ import { AudioVisualizer } from "@/components/ui/audio-visualizer"
 import { Button } from "@/components/ui/button"
 import { ProviderSelector } from "@/components/ui/provider-selector"
 import { InterruptPrompt } from "@/components/ui/interrupt-prompt"
+import { createImagePreview, isSupportedImageFormat } from "@/lib/image-utils"
 
 interface MessageInputBaseProps
   extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
@@ -24,6 +25,8 @@ interface MessageInputBaseProps
   preferredProvider?: "built-in-ai" | "web-llm" | "transformers-js" | "auto"
   onProviderChange?: (provider: "built-in-ai" | "web-llm" | "transformers-js" | "auto") => void
   availableProviders?: ("built-in-ai" | "web-llm" | "transformers-js")[]
+  attachedImage?: { file: File; preview: string } | null
+  onAttachImage?: (image: { file: File; preview: string } | null) => void
 }
 
 interface MessageInputWithoutAttachmentProps extends MessageInputBaseProps {
@@ -44,9 +47,43 @@ export function MessageInput({
   preferredProvider,
   onProviderChange,
   availableProviders,
+  attachedImage,
+  onAttachImage,
   ...props
 }: MessageInputProps) {
   const [showInterruptPrompt, setShowInterruptPrompt] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [isLoadingImage, setIsLoadingImage] = useState(false)
+
+  // Handle image file selection
+  const handleImageSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    if (!isSupportedImageFormat(file)) {
+      console.warn('Unsupported image format:', file.type)
+      return
+    }
+
+    setIsLoadingImage(true)
+    try {
+      const preview = await createImagePreview(file)
+      onAttachImage?.({ file, preview })
+    } catch (error) {
+      console.error('Failed to load image:', error)
+    } finally {
+      setIsLoadingImage(false)
+    }
+
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
+  const handleRemoveImage = () => {
+    onAttachImage?.(null)
+  }
 
   const {
     isListening,
@@ -114,7 +151,7 @@ export function MessageInput({
   })
 
   return (
-    <div className="relative flex w-full">
+    <div className="relative flex w-full flex-col">
       {enableInterrupt && (
         <InterruptPrompt
           isOpen={showInterruptPrompt}
@@ -126,6 +163,28 @@ export function MessageInput({
         isVisible={isRecording}
         onStopRecording={stopRecording}
       />
+
+      {/* Image preview section - only show for built-in-ai provider */}
+      {preferredProvider === 'built-in-ai' && attachedImage && (
+        <div className="flex items-center gap-2 px-3 pt-2">
+          <div className="relative inline-block">
+            <img 
+              src={attachedImage.preview} 
+              alt="Attached" 
+              className="h-16 w-16 rounded border border-input object-cover"
+            />
+            <button
+              type="button"
+              onClick={handleRemoveImage}
+              className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              aria-label="Remove image"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+          <span className="text-xs text-muted-foreground">{attachedImage.file.name}</span>
+        </div>
+      )}
 
       {/* Bordered container that surrounds both textarea and control row */}
       <div className={cn("relative w-full rounded-xl border border-input bg-background overflow-hidden", className)}>
@@ -155,7 +214,7 @@ export function MessageInput({
         </div>
 
         {/* Bottom control row inside the same border */}
-  <div className="flex items-center justify-between gap-2 px-3 py-2">
+        <div className="flex items-center justify-between gap-2 px-3 py-2">
           <div className="flex items-center gap-2">
             {preferredProvider !== undefined && onProviderChange && availableProviders && (
               <ProviderSelector
@@ -164,6 +223,31 @@ export function MessageInput({
                 availableProviders={availableProviders}
                 className="h-8"
               />
+            )}
+            {/* Image attachment button - only for built-in-ai provider */}
+            {preferredProvider === 'built-in-ai' && (
+              <>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageSelect}
+                  className="hidden"
+                  disabled={isLoadingImage}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-8 w-8"
+                  aria-label="Attach image"
+                  size="icon"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isLoadingImage || isGenerating}
+                  title="Attach image (Built-in AI only)"
+                >
+                  <ImageIcon className="h-4 w-4" />
+                </Button>
+              </>
             )}
           </div>
 
