@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useChat } from '@ai-sdk/react'
-import { X } from 'lucide-react'
+import { X, Plus, ChevronDown, Edit2 } from 'lucide-react'
 import {
   doesBrowserSupportBuiltInAI,
   builtInAI,
@@ -18,9 +18,12 @@ import { ClientSideChatTransport } from '@/lib/client-side-chat-transport'
 import { Chat } from '@/components/ui/chat'
 import { SettingsMenu } from '@/components/ui/settings-menu'
 import { DownloadProgressDialog } from '@/components/ui/download-progress-dialog'
+import { ChatSidebar } from '@/components/ui/chat-sidebar'
+import { NewChatDialog } from '@/components/ui/new-chat-dialog'
 import type { Message } from '@/components/ui/chat-message'
 import { summarizeWithFallback } from '@/lib/summarizer-utils'
 import { getRewritePrompt, formatRewriteUserMessage, type RewriteTone } from '@/lib/rewrite-utils'
+import { useChats } from '@/hooks/use-chats'
 import './App.css'
 
 // Unified message type supporting all three providers
@@ -109,6 +112,22 @@ function App() {
   const [attachedImage, setAttachedImage] = useState<{ file: File; preview: string } | null>(null)
   const [messageAttachments, setMessageAttachments] = useState<Map<string, { url: string; name: string; contentType: string }>>(new Map())
   const [pendingAttachment, setPendingAttachment] = useState<{ url: string; name: string; contentType: string } | null>(null)
+  
+  // Chat title editing state
+  const [isEditingTitle, setIsEditingTitle] = useState(false)
+  const [editingTitle, setEditingTitle] = useState('')
+  
+  // Chat persistence state
+  const [currentChatId, setCurrentChatId] = useState<string | null>(null)
+  const [showNewChatDialog, setShowNewChatDialog] = useState(false)
+  const [showChatSidebar, setShowChatSidebar] = useState(false)
+  const { chats, currentChat, isLoading: isChatsLoading, createChat, selectChat, updateCurrentChatMessages, updateCurrentChatTitle, deleteChatById } = useChats(currentChatId, setCurrentChatId)
+  
+  // Track previous status to detect when streaming completes
+  const prevStatusRef = useRef<string | null>(null)
+  
+  // Track if we've already auto-created a chat for current session
+  const autoCreatedRef = useRef(false)
   
   // Initialize transport once using useMemo to ensure it's available during render
   // useMemo prevents the double-initialization issue in React Strict Mode
@@ -232,6 +251,91 @@ function App() {
       }
     }
   }, [rawMessages, pendingAttachment, messageAttachments])
+
+  // Save chat only when a message is completely streamed (not on every change)
+  // This prevents the infinite loop between auto-save and load effects
+  useEffect(() => {
+    if (!currentChatId) {
+      prevStatusRef.current = status
+      return
+    }
+
+    // Detect when streaming completes (status goes from 'streaming' to not-streaming)
+    const wasStreaming = prevStatusRef.current === 'streaming'
+    const isNowComplete = status !== 'streaming'
+    
+    if (wasStreaming && isNowComplete) {
+      // Streaming just completed, save the messages
+      // Only read rawMessages when we actually need to save
+      if (rawMessages.length === 0) {
+        prevStatusRef.current = status
+        return
+      }
+      
+      (async () => {
+        try {
+          // Convert rawMessages to ChatMessage format
+          const chatMessages = rawMessages.map((msg) => ({
+            id: msg.id,
+            role: msg.role as 'user' | 'assistant',
+            content: msg.parts?.filter((p) => p.type === 'text').map((p) => (p as { type: 'text'; text: string }).text).join('') || '',
+            timestamp: Date.now(),
+          }))
+          
+          await updateCurrentChatMessages(chatMessages)
+          console.log('[App] Chat saved (streaming complete)')
+        } catch (error) {
+          console.error('[App] Error saving chat:', error)
+        }
+      })()
+    }
+
+    // Track current status for next effect run
+    prevStatusRef.current = status
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, currentChatId, updateCurrentChatMessages]) // rawMessages intentionally excluded to prevent effect running during streaming
+
+  // Load messages from current chat when it changes
+  useEffect(() => {
+    console.log('[App] Load effect running:', { currentChatId, chatId: currentChat?.id, messageCount: currentChat?.messages.length })
+    
+    // No chat selected, clear all messages
+    if (!currentChatId) {
+      console.log('[App] No currentChatId, clearing messages')
+      setMessages([])
+      return
+    }
+
+    // Chat loaded from storage
+    if (currentChat && currentChat.id === currentChatId) {
+      console.log('[App] Chat matched:', currentChat.id, 'Messages in storage:', currentChat.messages.length)
+      
+      // Always clear first to ensure clean state when switching chats
+      if (currentChat.messages.length > 0) {
+        // Convert stored ChatMessage to UIMessage format
+        const convertedMessages = currentChat.messages.map((msg) => ({
+          id: msg.id,
+          role: msg.role as 'user' | 'assistant',
+          parts: [{ type: 'text' as const, text: msg.content }],
+        })) as UIMessage[]
+        
+        console.log('[App] Setting messages:', convertedMessages.length)
+        setMessages(convertedMessages)
+        console.log('[App] Loaded messages from chat:', currentChat.id)
+      } else {
+        console.log('[App] Chat has no messages yet, not clearing to preserve active conversation')
+      }
+    } else {
+      console.log('[App] Chat not loaded yet:', { currentChatId, chatId: currentChat?.id })
+    }
+  }, [currentChat, currentChatId, setMessages])
+
+  // Reset auto-create flag when manually selecting a chat so it can trigger again for empty chats
+  useEffect(() => {
+    if (currentChatId) {
+      autoCreatedRef.current = false
+    }
+  }, [currentChatId])
 
   // Signal to background script that sidebar is ready to receive messages
   useEffect(() => {
@@ -638,6 +742,89 @@ Provide a clear summary that captures the main points and key takeaways from the
     setInput('')
   }
 
+  // Handle starting title edit
+  const handleStartTitleEdit = () => {
+    if (currentChat) {
+      setEditingTitle(currentChat.title)
+      setIsEditingTitle(true)
+    }
+  }
+
+  // Handle saving title edit
+  const handleSaveTitleEdit = async () => {
+    const trimmedTitle = editingTitle.trim()
+    if (trimmedTitle && trimmedTitle !== currentChat?.title) {
+      try {
+        await updateCurrentChatTitle(trimmedTitle)
+      } catch (error) {
+        console.error('[App] Error updating chat title:', error)
+      }
+    }
+    setIsEditingTitle(false)
+    setEditingTitle('')
+  }
+
+  // Handle canceling title edit
+  const handleCancelTitleEdit = () => {
+    setIsEditingTitle(false)
+    setEditingTitle('')
+  }
+
+  // Handle title input key down
+  const handleTitleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleSaveTitleEdit()
+    } else if (e.key === 'Escape') {
+      handleCancelTitleEdit()
+    }
+  }
+
+  // Auto-create a new chat when user sends first message if no chat exists
+  useEffect(() => {
+    // Skip if we already auto-created or if a chat is selected
+    if (autoCreatedRef.current || currentChatId) {
+      return
+    }
+    
+    // Check if user has sent a message but no chat exists
+    const hasUserMessage = rawMessages.some(msg => msg.role === 'user')
+    if (hasUserMessage && rawMessages.length > 0) {
+      // Mark that we're auto-creating to prevent multiple creates
+      autoCreatedRef.current = true
+      
+      // Auto-create a chat for this message
+      const firstUserMessage = rawMessages.find(msg => msg.role === 'user')
+      if (firstUserMessage) {
+        const runAutoCreate = async () => {
+          try {
+            // Generate title from first user message (first 50 chars)
+            const firstMessageText = firstUserMessage.parts
+              ?.filter((p) => p.type === 'text')
+              .map((p) => (p as { type: 'text'; text: string }).text)
+              .join('')
+              .substring(0, 50) || 'New Chat'
+            
+            const newChat = await createChat(firstMessageText)
+            await selectChat(newChat.id)
+            console.log('[App] Auto-created chat:', newChat.id)
+          } catch (error) {
+            console.error('[App] Error auto-creating chat:', error)
+            autoCreatedRef.current = false // Reset on error to allow retry
+          }
+        }
+        
+        runAutoCreate()
+      }
+    }
+  }, [rawMessages, currentChatId, createChat, selectChat])
+
+  // Reset auto-create flag when manually selecting a different chat
+  useEffect(() => {
+    if (currentChatId) {
+      autoCreatedRef.current = false
+    }
+  }, [currentChatId])
+
   // Show loading state until client-side check completes
   if (!isClient) {
     return (
@@ -647,33 +834,68 @@ Provide a clear summary that captures the main points and key takeaways from the
     )
   }
 
-  const getProviderLabel = (): string => {
-    if (activeProvider === 'built-in-ai') {
-      return 'Chrome Built-in AI'
-    }
-    if (activeProvider === 'web-llm') {
-      return 'WebLLM (Local)'
-    }
-    if (activeProvider === 'transformers-js') {
-      return 'TransformersJS (Local)'
-    }
-    return 'AI Not Available'
-  }
-
   const isAIAvailable = activeProvider !== null
 
   return (
-    <div className="sidebar-container">
-      {/* Header Section (Fixed Top) */}
+    <div className="sidebar-container flex flex-col h-screen">
+      {/* Unified Header Section (Fixed Top) */}
       <header className="sidebar-header">
-        <div className="flex items-center gap-2 flex-1">
-          <div className="status-indicator"></div>
-          <span className="font-medium text-sm">{getProviderLabel()}</span>
+        {/* Left: Chat Name */}
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          {isEditingTitle ? (
+            <input
+              type="text"
+              value={editingTitle}
+              onChange={(e) => setEditingTitle(e.target.value)}
+              onKeyDown={handleTitleKeyDown}
+              onBlur={handleSaveTitleEdit}
+              className="font-medium text-sm bg-transparent border border-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-ring flex-1 min-w-0"
+              autoFocus
+              placeholder="Chat title..."
+            />
+          ) : (
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <span className="font-medium text-sm truncate flex-1 min-w-0">
+                {currentChat?.title || 'New Chat'}
+              </span>
+              {currentChat && (
+                <button
+                  onClick={handleStartTitleEdit}
+                  className="flex-shrink-0 p-1 rounded-md transition-all duration-200 hover:bg-accent hover:text-accent-foreground focus:outline-none focus:ring-2 focus:ring-ring dark:focus:ring-offset-background"
+                  title="Edit chat name"
+                  aria-label="Edit chat name"
+                >
+                  <Edit2 className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+          )}
         </div>
-        <div className="flex items-center gap-2">
-          <SettingsMenu
-            onReset={() => window.location.reload()}
-          />
+
+        {/* Right: Chat Controls + Settings */}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {/* New Chat Button */}
+          <button
+            onClick={() => setShowNewChatDialog(true)}
+            className="p-1.5 rounded-md transition-all duration-200 hover:bg-accent hover:text-accent-foreground focus:outline-none focus:ring-2 focus:ring-ring dark:focus:ring-offset-background"
+            title="New Chat"
+            aria-label="New Chat"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
+
+          {/* View Chats Dropdown Button */}
+          <button
+            onClick={() => setShowChatSidebar(!showChatSidebar)}
+            className="p-1.5 rounded-md transition-all duration-200 hover:bg-accent hover:text-accent-foreground focus:outline-none focus:ring-2 focus:ring-ring dark:focus:ring-offset-background"
+            title="View chats"
+            aria-label="View chats"
+          >
+            <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${showChatSidebar ? 'rotate-180' : ''}`} />
+          </button>
+
+          {/* Settings Menu */}
+          <SettingsMenu />
         </div>
       </header>
 
@@ -758,8 +980,46 @@ Provide a clear summary that captures the main points and key takeaways from the
           ]}
         />
       </div>
+
+      {/* Chat Sidebar Overlay */}
+      {showChatSidebar && (
+        <div className="absolute inset-0 bg-black/50 z-40" onClick={() => setShowChatSidebar(false)}>
+          <ChatSidebar
+            chats={chats}
+            selectedChatId={currentChatId}
+            isLoading={isChatsLoading}
+            onNewChat={() => {
+              setShowNewChatDialog(true)
+              setShowChatSidebar(false)
+            }}
+            onSelectChat={async (chatId) => {
+              await selectChat(chatId)
+              setShowChatSidebar(false)
+            }}
+            onDeleteChat={(chatId) => deleteChatById(chatId)}
+          />
+        </div>
+      )}
+
+      {/* New Chat Dialog */}
+      <NewChatDialog
+        isOpen={showNewChatDialog}
+        onClose={() => setShowNewChatDialog(false)}
+        onCreate={async (title) => {
+          try {
+            // Clear messages immediately to prevent old messages from showing
+            setMessages([])
+            const newChat = await createChat(title)
+            await selectChat(newChat.id)
+            setShowNewChatDialog(false)
+          } catch (error) {
+            console.error('[App] Error creating new chat:', error)
+          }
+        }}
+      />
     </div>
   )
 }
 
 export default App
+

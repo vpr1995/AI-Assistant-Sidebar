@@ -1,21 +1,17 @@
 import { useState, useRef, useEffect } from 'react'
-import { Settings, RotateCcw, Sun, Moon, Monitor } from 'lucide-react'
+import { Settings, Sun, Moon, Monitor } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useThemeContext } from '@/hooks/use-theme-context'
 import { cn } from '@/lib/utils'
 
 type Theme = 'light' | 'dark' | 'system'
 
-interface SettingsMenuProps {
-  onReset?: () => void
-}
-
 interface MenuPosition {
   top: number
   right: number
 }
 
-export function SettingsMenu({ onReset }: SettingsMenuProps) {
+export function SettingsMenu() {
   const [isOpen, setIsOpen] = useState(false)
   const [menuPosition, setMenuPosition] = useState<MenuPosition>({ top: 0, right: 0 })
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -175,32 +171,6 @@ export function SettingsMenu({ onReset }: SettingsMenuProps) {
                   </div>
                 </div>
               </div>
-
-              {/* Divider */}
-              <div className="h-px bg-border/50" />
-
-              {/* Reset Section */}
-              <motion.button
-                custom={3}
-                variants={itemVariants}
-                initial="hidden"
-                animate="visible"
-                onClick={() => {
-                  onReset?.()
-                  setIsOpen(false)
-                }}
-                className={cn(
-                  'w-full flex items-center gap-3 px-3 py-3 rounded-lg',
-                  'text-sm font-medium transition-all duration-150',
-                  'hover:bg-destructive/10 hover:text-destructive',
-                  'focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
-                  'dark:focus:ring-offset-background',
-                  'text-destructive/80 hover:text-destructive',
-                )}
-              >
-                <RotateCcw className="h-4 w-4" />
-                <span>Reset Chat</span>
-              </motion.button>
             </div>
           </motion.div>
         )}
