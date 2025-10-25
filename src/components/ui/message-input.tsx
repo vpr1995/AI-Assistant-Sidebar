@@ -21,9 +21,9 @@ interface MessageInputBaseProps
   isGenerating: boolean
   enableInterrupt?: boolean
   transcribeAudio?: (blob: Blob) => Promise<string>
-  preferredProvider?: "built-in-ai" | "web-llm" | "auto"
-  onProviderChange?: (provider: "built-in-ai" | "web-llm" | "auto") => void
-  availableProviders?: ("built-in-ai" | "web-llm")[]
+  preferredProvider?: "built-in-ai" | "web-llm" | "transformers-js" | "auto"
+  onProviderChange?: (provider: "built-in-ai" | "web-llm" | "transformers-js" | "auto") => void
+  availableProviders?: ("built-in-ai" | "web-llm" | "transformers-js")[]
 }
 
 interface MessageInputWithoutAttachmentProps extends MessageInputBaseProps {

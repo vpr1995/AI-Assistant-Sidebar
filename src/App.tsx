@@ -10,6 +10,10 @@ import {
   doesBrowserSupportWebLLM,
   type WebLLMUIMessage,
 } from '@built-in-ai/web-llm'
+import {
+  doesBrowserSupportTransformersJS,
+  type TransformersUIMessage,
+} from '@built-in-ai/transformers-js'
 import { ClientSideChatTransport } from '@/lib/client-side-chat-transport'
 import { Chat } from '@/components/ui/chat'
 import { SettingsMenu } from '@/components/ui/settings-menu'
@@ -19,14 +23,14 @@ import { summarizeWithFallback } from '@/lib/summarizer-utils'
 import { getRewritePrompt, formatRewriteUserMessage, type RewriteTone } from '@/lib/rewrite-utils'
 import './App.css'
 
-// Unified message type supporting both providers
-type UIMessage = BuiltInAIUIMessage | WebLLMUIMessage
+// Unified message type supporting all three providers
+type UIMessage = BuiltInAIUIMessage | WebLLMUIMessage | TransformersUIMessage
 
 /**
  * Detects which AI provider is available and configured
- * Priority: Built-in AI > WebLLM
+ * Priority: Built-in AI > WebLLM > TransformersJS
  */
-async function detectActiveProvider(): Promise<'built-in-ai' | 'web-llm' | null> {
+async function detectActiveProvider(): Promise<'built-in-ai' | 'web-llm' | 'transformers-js' | null> {
   console.log('[App] Detecting active provider...')
   
   if (doesBrowserSupportBuiltInAI()) {
@@ -50,7 +54,15 @@ async function detectActiveProvider(): Promise<'built-in-ai' | 'web-llm' | null>
     return 'web-llm'
   }
   
-  console.log('[App] Browser does NOT support WebLLM')
+  console.log('[App] Browser does NOT support WebLLM, checking TransformersJS')
+
+  if (doesBrowserSupportTransformersJS()) {
+    console.log('[App] Browser supports TransformersJS')
+    console.log('[App] ✓ Using TransformersJS provider')
+    return 'transformers-js'
+  }
+
+  console.log('[App] Browser does NOT support TransformersJS')
   console.warn('[App] ✗ No AI providers available!')
   return null
 }
@@ -72,13 +84,13 @@ function convertToMessage(uiMessage: UIMessage): Message {
 
 function App() {
   const [activeProvider, setActiveProvider] = useState<
-    'built-in-ai' | 'web-llm' | null
+    'built-in-ai' | 'web-llm' | 'transformers-js' | null
   >(null)
   const [preferredProvider, setPreferredProvider] = useState<
-    'built-in-ai' | 'web-llm' | 'auto'
+    'built-in-ai' | 'web-llm' | 'transformers-js' | 'auto'
   >('auto')
   const [availableProviders, setAvailableProviders] = useState<
-    ('built-in-ai' | 'web-llm')[]
+    ('built-in-ai' | 'web-llm' | 'transformers-js')[]
   >([])
   const [isClient, setIsClient] = useState(false)
   const [input, setInput] = useState('')
@@ -88,6 +100,7 @@ function App() {
     message: string
   } | null>(null)
   const [dismissedWebLLMInfo, setDismissedWebLLMInfo] = useState(false)
+  const [dismissedTransformersJSInfo, setDismissedTransformersJSInfo] = useState(false)
   const [isSummarizeOrRewriteLoading, setIsSummarizeOrRewriteLoading] = useState(false)
   
   // Initialize transport once using useMemo to ensure it's available during render
@@ -110,7 +123,7 @@ function App() {
     
     // Initialize available providers
     const checkAvailableProviders = async () => {
-      const available: ('built-in-ai' | 'web-llm')[] = []
+      const available: ('built-in-ai' | 'web-llm' | 'transformers-js')[] = []
       
       if (doesBrowserSupportBuiltInAI()) {
         const model = builtInAI()
@@ -122,6 +135,10 @@ function App() {
       
       if (doesBrowserSupportWebLLM()) {
         available.push('web-llm')
+      }
+
+      if (doesBrowserSupportTransformersJS()) {
+        available.push('transformers-js')
       }
       
       console.log('[App] Available providers:', available)
@@ -176,7 +193,9 @@ function App() {
           ? 'Chrome Built-in AI'
           : activeProvider === 'web-llm'
             ? 'WebLLM'
-            : 'AI'
+            : activeProvider === 'transformers-js'
+              ? 'TransformersJS'
+              : 'AI'
       alert(
         `${providerInfo} Error: ${error.message}\n\nPlease try again or check the browser console for more details.`
       )
@@ -555,6 +574,9 @@ Provide a clear summary that captures the main points and key takeaways from the
     if (activeProvider === 'web-llm') {
       return 'WebLLM (Local)'
     }
+    if (activeProvider === 'transformers-js') {
+      return 'TransformersJS (Local)'
+    }
     return 'AI Not Available'
   }
 
@@ -582,8 +604,7 @@ Provide a clear summary that captures the main points and key takeaways from the
             ⚠️ No AI providers available
           </p>
           <p className="text-xs text-yellow-700 dark:text-yellow-300 mt-2">
-            Please ensure your browser supports either Chrome Built-in AI or
-            WebLLM.
+            Please ensure your browser supports Chrome Built-in AI, WebLLM, or TransformersJS.
           </p>
         </div>
       )}
@@ -601,6 +622,23 @@ Provide a clear summary that captures the main points and key takeaways from the
             aria-label="Dismiss message"
           >
             <X className="h-4 w-4 text-blue-700 dark:text-blue-300" />
+          </button>
+        </div>
+      )}
+
+      {/* Info message for TransformersJS fallback */}
+      {activeProvider === 'transformers-js' && !dismissedTransformersJSInfo && (
+        <div className="p-3 bg-purple-50 dark:bg-purple-900/20 border-b border-purple-200 dark:border-purple-800 flex items-center justify-between gap-2">
+          <p className="text-xs text-purple-700 dark:text-purple-300">
+            ℹ️ Using TransformersJS with local model. First response may take longer as
+            the model downloads.
+          </p>
+          <button
+            onClick={() => setDismissedTransformersJSInfo(true)}
+            className="flex-shrink-0 p-1 hover:bg-purple-200 dark:hover:bg-purple-800 rounded transition-colors"
+            aria-label="Dismiss message"
+          >
+            <X className="h-4 w-4 text-purple-700 dark:text-purple-300" />
           </button>
         </div>
       )}

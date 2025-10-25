@@ -23,16 +23,21 @@ import {
   doesBrowserSupportWebLLM,
   type WebLLMUIMessage,
 } from '@built-in-ai/web-llm'
+import {
+  transformersJS,
+  doesBrowserSupportTransformersJS,
+  type TransformersUIMessage,
+} from '@built-in-ai/transformers-js'
 
 
-// Unified message type supporting both providers
-type UIMessage = BuiltInAIUIMessage | WebLLMUIMessage
+// Unified message type supporting all three providers
+type UIMessage = BuiltInAIUIMessage | WebLLMUIMessage | TransformersUIMessage
 
 /**
  * Detects which AI provider is available
- * Returns 'built-in-ai' if available, 'web-llm' if Built-in AI unavailable
+ * Returns providers in priority order: 'built-in-ai' → 'web-llm' → 'transformers-js'
  */
-async function detectAvailableProvider(): Promise<'built-in-ai' | 'web-llm'> {
+async function detectAvailableProvider(): Promise<'built-in-ai' | 'web-llm' | 'transformers-js'> {
   console.log('[AI Provider Detection] Starting detection...')
   
   if (doesBrowserSupportBuiltInAI()) {
@@ -56,29 +61,39 @@ async function detectAvailableProvider(): Promise<'built-in-ai' | 'web-llm'> {
     return 'web-llm'
   }
   
-  console.log('[AI Provider Detection] Browser does NOT support WebLLM')
+  console.log('[AI Provider Detection] Browser does NOT support WebLLM, checking TransformersJS...')
 
-  // Fallback to web-llm even if detection says no (may still work)
-  console.log('[AI Provider Detection] Selected: WebLLM (fallback)')
-  return 'web-llm'
+  if (doesBrowserSupportTransformersJS()) {
+    console.log('[AI Provider Detection] Browser supports TransformersJS')
+    console.log('[AI Provider Detection] Selected: TransformersJS')
+    return 'transformers-js'
+  }
+
+  console.log('[AI Provider Detection] Browser does NOT support TransformersJS')
+
+  // Fallback to transformers-js even if detection says no (may still work)
+  console.log('[AI Provider Detection] Selected: TransformersJS (fallback)')
+  return 'transformers-js'
 }
 
 /**
- * Client-side chat transport implementing dual-provider AI support
- * Automatically falls back from Built-in AI to WebLLM if needed
+ * Client-side chat transport implementing triple-provider AI support
+ * Automatically falls back: Built-in AI → WebLLM → TransformersJS
  *
  * @implements {ChatTransport<UIMessage>}
  */
 export class ClientSideChatTransport implements ChatTransport<UIMessage> {
-  private provider: 'built-in-ai' | 'web-llm' | null = null
-  private preferredProvider: 'built-in-ai' | 'web-llm' | 'auto' = 'auto'
+  private provider: 'built-in-ai' | 'web-llm' | 'transformers-js' | null = null
+  private preferredProvider: 'built-in-ai' | 'web-llm' | 'transformers-js' | 'auto' = 'auto'
   private cachedWebLLMModel: ReturnType<typeof webLLM> | null = null
   private webLLMModelInitializing: Promise<void> | null = null
-  private providerChangeCallback: ((provider: 'built-in-ai' | 'web-llm') => void) | null = null
+  private cachedTransformersJSModel: ReturnType<typeof transformersJS> | null = null
+  private transformersJSModelInitializing: Promise<void> | null = null
+  private providerChangeCallback: ((provider: 'built-in-ai' | 'web-llm' | 'transformers-js') => void) | null = null
   private progressCallback: ((progress: { status: string; progress: number; message: string }) => void) | null = null
   private static hasLoggedInitialization = false
 
-  constructor(preferredProvider: 'built-in-ai' | 'web-llm' | 'auto' = 'auto') {
+  constructor(preferredProvider: 'built-in-ai' | 'web-llm' | 'transformers-js' | 'auto' = 'auto') {
     this.preferredProvider = preferredProvider
     // Only log initialization once per session to avoid Strict Mode double-logging in development
     if (!ClientSideChatTransport.hasLoggedInitialization) {
@@ -118,16 +133,19 @@ export class ClientSideChatTransport implements ChatTransport<UIMessage> {
     if (this.provider === 'built-in-ai') {
       console.log('[ClientSideChatTransport] Calling handleBuiltInAI')
       return this.handleBuiltInAI(prompt, abortSignal)
-    } else {
+    } else if (this.provider === 'web-llm') {
       console.log('[ClientSideChatTransport] Calling handleWebLLM')
       return this.handleWebLLM(prompt, abortSignal)
+    } else {
+      console.log('[ClientSideChatTransport] Calling handleTransformersJS')
+      return this.handleTransformersJS(prompt, abortSignal)
     }
   }
 
   /**
    * Selects which provider to use based on user preference and availability
    */
-  private async selectProvider(): Promise<'built-in-ai' | 'web-llm'> {
+  private async selectProvider(): Promise<'built-in-ai' | 'web-llm' | 'transformers-js'> {
     console.log('[ClientSideChatTransport.selectProvider] Current preferred provider:', this.preferredProvider)
 
     // If user specified a preference
@@ -144,6 +162,11 @@ export class ClientSideChatTransport implements ChatTransport<UIMessage> {
     if (this.preferredProvider === 'web-llm') {
       console.log('[ClientSideChatTransport.selectProvider] User prefers WebLLM, using it')
       return 'web-llm'
+    }
+
+    if (this.preferredProvider === 'transformers-js') {
+      console.log('[ClientSideChatTransport.selectProvider] User prefers TransformersJS, using it')
+      return 'transformers-js'
     }
 
     // Auto mode: use automatic detection
@@ -169,7 +192,7 @@ export class ClientSideChatTransport implements ChatTransport<UIMessage> {
    * Update the preferred provider (allows user to switch)
    * Only resets provider detection if preference actually changed
    */
-  setPreferredProvider(provider: 'built-in-ai' | 'web-llm' | 'auto'): void {
+  setPreferredProvider(provider: 'built-in-ai' | 'web-llm' | 'transformers-js' | 'auto'): void {
     // Only reset if preference actually changed
     if (this.preferredProvider === provider) {
       console.log('[ClientSideChatTransport] Preferred provider unchanged:', provider)
@@ -180,9 +203,11 @@ export class ClientSideChatTransport implements ChatTransport<UIMessage> {
     this.preferredProvider = provider
     // Reset the detected provider to force re-detection on next message
     this.provider = null
-    // Clear cached WebLLM model to force re-initialization
+    // Clear cached models to force re-initialization
     this.cachedWebLLMModel = null
     this.webLLMModelInitializing = null
+    this.cachedTransformersJSModel = null
+    this.transformersJSModelInitializing = null
     console.log('[ClientSideChatTransport] Provider detection will be re-run on next message')
   }
 
@@ -191,14 +216,14 @@ export class ClientSideChatTransport implements ChatTransport<UIMessage> {
    * Returns the provider that will be used for the next message
    * If not yet determined, returns null
    */
-  getActiveProvider(): 'built-in-ai' | 'web-llm' | null {
+  getActiveProvider(): 'built-in-ai' | 'web-llm' | 'transformers-js' | null {
     return this.provider
   }
 
   /**
    * Set a callback to be called when the active provider is determined or changes
    */
-  onProviderChange(callback: (provider: 'built-in-ai' | 'web-llm') => void): void {
+  onProviderChange(callback: (provider: 'built-in-ai' | 'web-llm' | 'transformers-js') => void): void {
     this.providerChangeCallback = callback
   }
 
@@ -532,6 +557,190 @@ export class ClientSideChatTransport implements ChatTransport<UIMessage> {
     return this.cachedWebLLMModel!
   }
 
+  private async handleTransformersJS(
+    prompt: ModelMessage[],
+    abortSignal: AbortSignal | undefined
+  ): Promise<ReadableStream<UIMessageChunk>> {
+    // Use SmolLM2 360M model for TransformersJS (same as recommended in docs)
+    const modelId = 'HuggingFaceTB/SmolLM2-360M-Instruct'
+    
+    // Get or initialize the model (with caching)
+    const model = await this.getOrInitializeTransformersJSModel(modelId)
+
+    // Check availability and handle download
+    const availability = await model.availability()
+    console.log('[TransformersJS] Model availability:', availability)
+
+    if (availability === 'available') {
+      console.log('[TransformersJS] Model is already available, streaming immediately')
+      const result = streamText({
+        model,
+        messages: prompt,
+        abortSignal: abortSignal,
+      })
+      return result.toUIMessageStream()
+    }
+
+    // Handle model download with progress tracking
+    console.log('[TransformersJS] Model needs to be downloaded/prepared')
+    return createUIMessageStream<UIMessage>({
+      execute: async ({ writer }) => {
+        try {
+          let downloadProgressId: string | undefined
+
+          // Download/prepare model with progress monitoring
+          await model.createSessionWithProgress(({ progress }: { progress: number }) => {
+            const percent = Math.round(progress * 100)
+            console.log('[TransformersJS] Download progress:', percent + '%')
+
+            if (progress >= 1) {
+              // Download complete - model is ready for inference
+              console.log('[TransformersJS] Download complete, ready for inference')
+              if (this.progressCallback) {
+                this.progressCallback({
+                  status: 'complete',
+                  progress: 100,
+                  message: 'Model loaded! Ready to chat...',
+                })
+              }
+              if (downloadProgressId) {
+                writer.write({
+                  type: 'data-modelDownloadProgress',
+                  id: downloadProgressId,
+                  data: {
+                    status: 'complete',
+                    progress: 100,
+                    message:
+                      'Model loaded! Ready to chat...',
+                  },
+                })
+              }
+              return
+            }
+
+            // First progress update
+            if (!downloadProgressId) {
+              downloadProgressId = `download-${Date.now()}`
+              console.log('[TransformersJS] First progress update, id:', downloadProgressId)
+              if (this.progressCallback) {
+                this.progressCallback({
+                  status: 'downloading',
+                  progress: percent,
+                  message: 'Downloading TransformersJS model...',
+                })
+              }
+              writer.write({
+                type: 'data-modelDownloadProgress',
+                id: downloadProgressId,
+                data: {
+                  status: 'downloading',
+                  progress: percent,
+                  message: 'Downloading TransformersJS model...',
+                },
+                transient: true,
+              })
+              return
+            }
+
+            // Ongoing progress updates
+            if (this.progressCallback) {
+              this.progressCallback({
+                status: 'downloading',
+                progress: percent,
+                message: `Downloading TransformersJS model... ${percent}%`,
+              })
+            }
+            writer.write({
+              type: 'data-modelDownloadProgress',
+              id: downloadProgressId,
+              data: {
+                status: 'downloading',
+                progress: percent,
+                message: `Downloading TransformersJS model... ${percent}%`,
+              },
+            })
+          })
+
+          // Stream the actual text response
+          console.log('[TransformersJS] Starting inference')
+          const result = streamText({
+            model,
+            messages: prompt as ModelMessage[],
+            abortSignal: abortSignal,
+            onChunk(event) {
+              // Clear progress message on first text chunk
+              if (event.chunk.type === 'text-delta' && downloadProgressId) {
+                console.log('[TransformersJS] Received first text chunk, clearing progress')
+                writer.write({
+                  type: 'data-modelDownloadProgress',
+                  id: downloadProgressId,
+                  data: { status: 'complete', progress: 100, message: '' },
+                })
+                downloadProgressId = undefined
+              }
+            },
+          })
+
+          writer.merge(result.toUIMessageStream({ sendStart: false }))
+        } catch (error) {
+          const errorMessage = `Error with TransformersJS: ${
+            error instanceof Error ? error.message : 'Unknown error'
+          }`
+          console.error('[TransformersJS]', errorMessage, error)
+          writer.write({
+            type: 'data-notification',
+            data: {
+              message: errorMessage,
+              level: 'error',
+            },
+            transient: true,
+          })
+          throw error
+        }
+      },
+    })
+  }
+
+  /**
+   * Gets or initializes the cached TransformersJS model
+   * Ensures only one initialization happens at a time
+   */
+  private async getOrInitializeTransformersJSModel(
+    modelId: string
+  ): Promise<ReturnType<typeof transformersJS>> {
+    // Return cached model if available
+    if (this.cachedTransformersJSModel) {
+      console.log('[TransformersJS] Using cached model instance')
+      return this.cachedTransformersJSModel
+    }
+
+    // Wait if initialization is in progress
+    if (this.transformersJSModelInitializing) {
+      console.log('[TransformersJS] Model initialization already in progress, waiting...')
+      await this.transformersJSModelInitializing
+      return this.cachedTransformersJSModel!
+    }
+
+    // Initialize the model
+    console.log('[TransformersJS] Creating new model instance:', modelId)
+    this.transformersJSModelInitializing = (async () => {
+      try {
+        this.cachedTransformersJSModel = transformersJS(modelId, {
+          device: 'webgpu',
+          worker: new Worker(new URL('../transformers-worker.ts', import.meta.url), {
+            type: 'module',
+          }),
+        })
+        console.log('[TransformersJS] Model instance created and cached')
+      } finally {
+        this.transformersJSModelInitializing = null
+      }
+    })()
+
+    await this.transformersJSModelInitializing
+    return this.cachedTransformersJSModel!
+  }
+
   async reconnectToStream(): Promise<ReadableStream<UIMessageChunk> | null> {
     // Client-side AI doesn't support stream reconnection
     return null
@@ -582,10 +791,38 @@ export class ClientSideChatTransport implements ChatTransport<UIMessage> {
       }
       
       return fullText
-    } else {
+    } else if (this.provider === 'web-llm') {
       // WebLLM
       const modelId = 'Llama-3.2-1B-Instruct-q4f16_1-MLC'
       const model = await this.getOrInitializeWebLLMModel(modelId)
+      
+      const result = streamText({
+        model,
+        messages,
+      })
+      
+      // Collect all text chunks
+      let fullText = ''
+      const reader = result.toUIMessageStream().getReader()
+      
+      try {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          
+          if (value.type === 'text-delta') {
+            fullText += value.delta
+          }
+        }
+      } finally {
+        reader.releaseLock()
+      }
+      
+      return fullText
+    } else {
+      // TransformersJS
+      const modelId = 'HuggingFaceTB/SmolLM2-360M-Instruct'
+      const model = await this.getOrInitializeTransformersJSModel(modelId)
       
       const result = streamText({
         model,
@@ -654,10 +891,34 @@ export class ClientSideChatTransport implements ChatTransport<UIMessage> {
       } finally {
         reader.releaseLock()
       }
-    } else {
+    } else if (this.provider === 'web-llm') {
       // WebLLM
       const modelId = 'Llama-3.2-1B-Instruct-q4f16_1-MLC'
       const model = await this.getOrInitializeWebLLMModel(modelId)
+      
+      const result = streamText({
+        model,
+        messages,
+      })
+      
+      const reader = result.toUIMessageStream().getReader()
+      
+      try {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          
+          if (value.type === 'text-delta') {
+            onChunk(value.delta)
+          }
+        }
+      } finally {
+        reader.releaseLock()
+      }
+    } else {
+      // TransformersJS
+      const modelId = 'HuggingFaceTB/SmolLM2-360M-Instruct'
+      const model = await this.getOrInitializeTransformersJSModel(modelId)
       
       const result = streamText({
         model,

@@ -37,9 +37,9 @@ interface ChatPropsBase {
   transcribeAudio?: (blob: Blob) => Promise<string>
   showLoadingStatus?: boolean
   isSummarizeOrRewriteLoading?: boolean
-  preferredProvider?: "built-in-ai" | "web-llm" | "auto"
-  onProviderChange?: (provider: "built-in-ai" | "web-llm" | "auto") => void
-  availableProviders?: ("built-in-ai" | "web-llm")[]
+  preferredProvider?: "built-in-ai" | "web-llm" | "transformers-js" | "auto"
+  onProviderChange?: (provider: "built-in-ai" | "web-llm" | "transformers-js" | "auto") => void
+  availableProviders?: ("built-in-ai" | "web-llm" | "transformers-js")[]
 }
 
 interface ChatPropsWithoutSuggestions extends ChatPropsBase {

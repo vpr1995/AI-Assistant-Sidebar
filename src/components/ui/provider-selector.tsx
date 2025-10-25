@@ -1,15 +1,15 @@
 import { cn } from "@/lib/utils"
 
 interface ProviderOption {
-  id: "built-in-ai" | "web-llm" | "auto"
+  id: "built-in-ai" | "web-llm" | "transformers-js" | "auto"
   label: string
   description: string
 }
 
 interface ProviderSelectorProps {
-  value: "built-in-ai" | "web-llm" | "auto"
-  onChange: (provider: "built-in-ai" | "web-llm" | "auto") => void
-  availableProviders: ("built-in-ai" | "web-llm")[]
+  value: "built-in-ai" | "web-llm" | "transformers-js" | "auto"
+  onChange: (provider: "built-in-ai" | "web-llm" | "transformers-js" | "auto") => void
+  availableProviders: ("built-in-ai" | "web-llm" | "transformers-js")[]
   className?: string
 }
 
@@ -28,6 +28,11 @@ const PROVIDER_OPTIONS: ProviderOption[] = [
     id: "web-llm",
     label: "WebLLM",
     description: "Local model (fallback)",
+  },
+  {
+    id: "transformers-js",
+    label: "TransformersJS",
+    description: "Local model (experimental)",
   },
 ]
 
@@ -49,7 +54,7 @@ export function ProviderSelector({
         id="provider-select"
         value={value}
         onChange={(e) =>
-          onChange(e.target.value as "built-in-ai" | "web-llm" | "auto")
+          onChange(e.target.value as "built-in-ai" | "web-llm" | "transformers-js" | "auto")
         }
         className={cn(
           "h-8 rounded-md border border-border bg-popover text-popover-foreground px-2.5 py-1 text-xs",
