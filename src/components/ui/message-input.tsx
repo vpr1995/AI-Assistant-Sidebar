@@ -127,75 +127,85 @@ export function MessageInput({
         onStopRecording={stopRecording}
       />
 
-      <div className="relative flex w-full items-center space-x-2">
-        <div className="relative flex-1">
+      {/* Bordered container that surrounds both textarea and control row */}
+      <div className={cn("relative w-full rounded-xl border border-input bg-background overflow-hidden", className)}>
+        {/* Textarea area (keeps its own relative context so overlays can position over it) */}
+        <div className="relative">
           <textarea
             aria-label="Write your prompt here"
             placeholder={placeholder}
             ref={textAreaRef}
             onKeyDown={onKeyDown}
             className={cn(
-              "z-10 w-full grow resize-none rounded-xl border border-input bg-background p-3 pr-24 text-sm ring-offset-background transition-[border] placeholder:text-muted-foreground focus-visible:border-primary focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50",
-              className
+              "z-10 w-full grow resize-none bg-transparent p-3 text-sm ring-offset-background transition-[border] placeholder:text-muted-foreground focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50",
+              // keep any extra classes provided by callers applied to the outer container
+              // but keep textarea visuals consistent
+              ""
             )}
             {...omit(props, ["allowAttachments"])}
           />
+
+          <RecordingControls
+            isRecording={isRecording}
+            isTranscribing={isTranscribing}
+            audioStream={audioStream}
+            textAreaHeight={textAreaHeight}
+            onStopRecording={stopRecording}
+          />
+        </div>
+
+        {/* Bottom control row inside the same border */}
+  <div className="flex items-center justify-between gap-2 px-3 py-2">
+          <div className="flex items-center gap-2">
+            {preferredProvider !== undefined && onProviderChange && availableProviders && (
+              <ProviderSelector
+                value={preferredProvider}
+                onChange={onProviderChange}
+                availableProviders={availableProviders}
+                className="h-8"
+              />
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            {isSpeechSupported && (
+              <Button
+                type="button"
+                variant="outline"
+                className={cn("h-8 w-8", isListening && !isGenerating && "text-primary")}
+                aria-label="Voice input"
+                size="icon"
+                onClick={toggleListening}
+                disabled={isGenerating}
+                title={isGenerating ? "Voice input disabled while generating" : "Voice input"}
+              >
+                <Mic className="h-4 w-4" />
+              </Button>
+            )}
+            {isGenerating && stop ? (
+              <Button
+                type="button"
+                size="icon"
+                className="h-8 w-8"
+                aria-label="Stop generating"
+                onClick={stop}
+              >
+                <Square className="h-3 w-3 animate-pulse" fill="currentColor" />
+              </Button>
+            ) : (
+              <Button
+                type="submit"
+                size="icon"
+                className="h-8 w-8 transition-opacity"
+                aria-label="Send message"
+                disabled={props.value === "" || isGenerating}
+              >
+                <ArrowUp className="h-5 w-5" />
+              </Button>
+            )}
+          </div>
         </div>
       </div>
-
-      <div className="absolute right-3 top-3 z-20 flex gap-2">
-        {preferredProvider !== undefined && onProviderChange && availableProviders && (
-          <ProviderSelector
-            value={preferredProvider}
-            onChange={onProviderChange}
-            availableProviders={availableProviders}
-            className="h-8"
-          />
-        )}
-        {isSpeechSupported && (
-          <Button
-            type="button"
-            variant="outline"
-            className={cn("h-8 w-8", isListening && !isGenerating && "text-primary")}
-            aria-label="Voice input"
-            size="icon"
-            onClick={toggleListening}
-            disabled={isGenerating}
-            title={isGenerating ? "Voice input disabled while generating" : "Voice input"}
-          >
-            <Mic className="h-4 w-4" />
-          </Button>
-        )}
-        {isGenerating && stop ? (
-          <Button
-            type="button"
-            size="icon"
-            className="h-8 w-8"
-            aria-label="Stop generating"
-            onClick={stop}
-          >
-            <Square className="h-3 w-3 animate-pulse" fill="currentColor" />
-          </Button>
-        ) : (
-          <Button
-            type="submit"
-            size="icon"
-            className="h-8 w-8 transition-opacity"
-            aria-label="Send message"
-            disabled={props.value === "" || isGenerating}
-          >
-            <ArrowUp className="h-5 w-5" />
-          </Button>
-        )}
-      </div>
-
-      <RecordingControls
-        isRecording={isRecording}
-        isTranscribing={isTranscribing}
-        audioStream={audioStream}
-        textAreaHeight={textAreaHeight}
-        onStopRecording={stopRecording}
-      />
     </div>
   )
 }
