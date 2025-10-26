@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useChat } from '@ai-sdk/react'
 import { X, Plus, ChevronDown, Edit2 } from 'lucide-react'
 import {
@@ -24,6 +24,7 @@ import type { Message } from '@/components/ui/chat-message'
 import { summarizeWithFallback } from '@/lib/summarizer-utils'
 import { getSummarizerPreference, type SummarizerPreference } from '@/lib/settings-storage'
 import { getRewritePrompt, formatRewriteUserMessage, type RewriteTone } from '@/lib/rewrite-utils'
+import { updateChatMessages } from '@/lib/chat-storage'
 import { useChats } from '@/hooks/use-chats'
 import './App.css'
 
@@ -128,9 +129,7 @@ function App() {
   const prevStatusRef = useRef<string | null>(null)
   
   // Track if we've already auto-created a chat for current session
-  const autoCreatedRef = useRef(false)
-  
-  // Initialize transport once using useMemo to ensure it's available during render
+  const autoCreatedRef = useRef(false)  // Initialize transport once using useMemo to ensure it's available during render
   // useMemo prevents the double-initialization issue in React Strict Mode
   const transport = useMemo(
     () => new ClientSideChatTransport('auto'),
@@ -234,6 +233,38 @@ function App() {
 
   // Convert messages to the format expected by Chat component
   const messages = rawMessages.map((msg) => convertToMessage(msg, messageAttachments))
+
+  // Helper function to save current messages to chat
+  const saveCurrentMessages = useCallback(async (uiMessagesToSave?: UIMessage[], chatIdOverride?: string) => {
+    const messagesToSave = uiMessagesToSave || rawMessages
+    const chatIdToUse = chatIdOverride || currentChatId
+    
+    if (!chatIdToUse || messagesToSave.length === 0) {
+      console.log('[App] Cannot save: chatId=', chatIdToUse, 'messageCount=', messagesToSave.length)
+      return
+    }
+
+    try {
+      // Convert messages to ChatMessage format - extract content from parts
+      const chatMessages = messagesToSave.map((msg) => {
+        const content = msg.parts?.filter((p) => p.type === 'text').map((p) => (p as { type: 'text'; text: string }).text).join('') || ''
+        console.log('[App] Saving message:', msg.id, 'role:', msg.role, 'content length:', content.length)
+        return {
+          id: msg.id,
+          role: msg.role as 'user' | 'assistant',
+          content: content,
+          timestamp: Date.now(),
+        }
+      })
+
+      console.log('[App] Saving', chatMessages.length, 'messages to chat', chatIdToUse, ':', chatMessages.map(m => ({ id: m.id, role: m.role, contentLen: m.content.length })))
+      // Use storage function directly to avoid currentChat dependency
+      await updateChatMessages(chatIdToUse, chatMessages)
+      console.log('[App] Chat saved successfully')
+    } catch (error) {
+      console.error('[App] Error saving chat:', error)
+    }
+  }, [currentChatId, rawMessages])
 
   // Associate pending attachment with the latest user message
   useEffect(() => {
@@ -346,6 +377,10 @@ function App() {
       return;
     }
 
+    // Establish a port connection to signal sidebar lifecycle
+    const port = chrome.runtime.connect({ name: 'sidebar' });
+    console.log('[App] Established port connection to background');
+
     // Send a ready signal to the background script
     // This ensures background.ts knows the sidebar is ready to receive messages
     try {
@@ -354,6 +389,12 @@ function App() {
     } catch {
       console.log('[App] Could not send ready signal (normal if background script not listening)');
     }
+
+    // Cleanup: disconnect port when component unmounts
+    return () => {
+      port.disconnect();
+      console.log('[App] Disconnected port connection');
+    };
   }, []);
 
   // Listen for page summarization requests from background script
@@ -379,14 +420,48 @@ function App() {
         }
       }
     ) => {
+      // Helper function to ensure a chat exists for summarization/rewrite actions
+      // Returns the chat ID (either existing or newly created)
+      const ensureChatExists = async (chatTitle: string): Promise<string> => {
+        if (currentChatId) {
+          return currentChatId
+        }
+        
+        console.log('[App] No current chat, creating new chat for:', chatTitle)
+        try {
+          const newChat = await createChat(chatTitle)
+          await selectChat(newChat.id)
+          console.log('[App] Created and selected new chat:', newChat.id)
+          return newChat.id
+        } catch (error) {
+          console.error('[App] Error creating chat:', error)
+          throw error
+        }
+      }
+
       if (message.action === 'summarizePage' && message.data) {
         console.log('[App] Received summarize page request:', message.data);
         
         try {
           const { title = '', content = '', url = '', byline = '' } = message.data;
           
-          // Clear existing messages when starting a new summarization
-          setMessages([]);
+          // Ensure a chat exists for this summarization and get the chat ID
+          const chatTitle = `Summary: ${title.substring(0, 50)}${title.length > 50 ? '...' : ''}`
+          const wasChatCreated = !currentChatId
+          const chatId = await ensureChatExists(chatTitle)
+          
+          // Track messages locally during summarization to ensure we save the final state
+          let currentMessages: UIMessage[] = []
+          
+          // Only clear existing messages if we just created a new chat
+          // If appending to existing chat, keep the existing messages
+          if (wasChatCreated) {
+            setMessages([]);
+            currentMessages = []
+          } else {
+            // For existing chats, start with the current raw messages (UIMessage format)
+            currentMessages = [...rawMessages]
+          }
           // Clear any attached image
           setAttachedImage(null);
           
@@ -405,7 +480,8 @@ function App() {
           };
           
           // Add user message to chat immediately
-          setMessages((prevMessages) => [...prevMessages, userMessage]);
+          currentMessages = [...currentMessages, userMessage]
+          setMessages(currentMessages);
           
           // Prepare summarization prompt for AI (this includes the content but won't be visible)
           const summarizationPrompt = `Please provide a concise summary of the following web page:
@@ -430,7 +506,8 @@ Provide a clear, well-structured summary focusing on the main points and key inf
           };
           
           // Add empty AI message
-          setMessages((prevMessages) => [...prevMessages, aiMessage]);
+          currentMessages = [...currentMessages, aiMessage]
+          setMessages(currentMessages);
           
           // Use Chrome Summarizer API with fallback to LLM transport
           const userPreference = await getSummarizerPreference()
@@ -450,14 +527,12 @@ Provide a clear, well-structured summary focusing on the main points and key inf
               };
               
               // Update messages array
-              setMessages((prevMessages) => {
-                const messages = [...prevMessages];
-                const lastIndex = messages.length - 1;
-                if (lastIndex >= 0 && messages[lastIndex] && messages[lastIndex].id === aiMessageId) {
-                  messages[lastIndex] = aiMessage;
-                }
-                return messages;
-              });
+              currentMessages = [...currentMessages]
+              const lastIndex = currentMessages.length - 1;
+              if (lastIndex >= 0 && currentMessages[lastIndex] && currentMessages[lastIndex].id === aiMessageId) {
+                currentMessages[lastIndex] = aiMessage;
+              }
+              setMessages(currentMessages);
             },
             { 
               type: 'key-points',
@@ -473,6 +548,9 @@ Provide a clear, well-structured summary focusing on the main points and key inf
           
           console.log('[App] Summarization complete with provider:', summarizerProvider);
           
+          // Save the final messages to chat using the chat ID we got
+          await saveCurrentMessages(currentMessages, chatId);
+          
         } catch (error) {
           console.error('[App] Error summarizing page:', error);
           setIsSummarizeOrRewriteLoading(false);
@@ -484,8 +562,23 @@ Provide a clear, well-structured summary focusing on the main points and key inf
         try {
           const { originalText, tone } = message.data as { originalText: string; tone: RewriteTone };
           
-          // Clear existing messages when starting a new rewrite
-          setMessages([]);
+          // Ensure a chat exists for this rewrite and get the chat ID
+          const chatTitle = `Rewrite: ${tone.charAt(0).toUpperCase() + tone.slice(1)}`
+          const wasChatCreated = !currentChatId
+          const chatId = await ensureChatExists(chatTitle)
+          
+          // Track messages locally during summarization to ensure we save the final state
+          let currentMessages: UIMessage[] = []
+          
+          // Only clear existing messages if we just created a new chat
+          // If appending to existing chat, keep the existing messages
+          if (wasChatCreated) {
+            setMessages([]);
+            currentMessages = []
+          } else {
+            // For existing chats, start with the current raw messages (UIMessage format)
+            currentMessages = [...rawMessages]
+          }
           // Clear any attached image
           setAttachedImage(null);
           
@@ -504,7 +597,8 @@ Provide a clear, well-structured summary focusing on the main points and key inf
           };
           
           // Add user message to chat immediately
-          setMessages((prevMessages) => [...prevMessages, userMessage]);
+          currentMessages = [...currentMessages, userMessage]
+          setMessages(currentMessages);
           
           // Get the rewrite prompt based on tone
           const rewritePrompt = getRewritePrompt(originalText, tone);
@@ -521,7 +615,8 @@ Provide a clear, well-structured summary focusing on the main points and key inf
           };
           
           // Add empty AI message
-          setMessages((prevMessages) => [...prevMessages, aiMessage]);
+          currentMessages = [...currentMessages, aiMessage]
+          setMessages(currentMessages);
           
           // Stream the rewritten text using transport
           await transport.streamSummary(rewritePrompt, (chunk: string) => {
@@ -538,31 +633,47 @@ Provide a clear, well-structured summary focusing on the main points and key inf
             };
             
             // Update messages array
-            setMessages((prevMessages) => {
-              const messages = [...prevMessages];
-              const lastIndex = messages.length - 1;
-              if (lastIndex >= 0 && messages[lastIndex] && messages[lastIndex].id === aiMessageId) {
-                messages[lastIndex] = aiMessage;
-              }
-              return messages;
-            });
+            currentMessages = [...currentMessages]
+            const lastIndex = currentMessages.length - 1;
+            if (lastIndex >= 0 && currentMessages[lastIndex] && currentMessages[lastIndex].id === aiMessageId) {
+              currentMessages[lastIndex] = aiMessage;
+            }
+            setMessages(currentMessages);
           });
           
           console.log('[App] Rewrite text complete');
+          
+          // Save the final messages to chat using the chat ID we got
+          await saveCurrentMessages(currentMessages, chatId);
           
         } catch (error) {
           console.error('[App] Error rewriting text:', error);
           setIsSummarizeOrRewriteLoading(false);
           alert('Failed to rewrite text. Please try again.');
         }
-      } else if (message.action === 'summarizeYoutube' && message.data) {
+      } else if (message.action === 'summarizeYouTubeVideo' && message.data) {
         console.log('[App] Received summarize YouTube request:', message.data);
         
         try {
           const { title = '', content = '', url = '', byline = '' } = message.data;
           
-          // Clear existing messages when starting a new summarization
-          setMessages([]);
+          // Ensure a chat exists for this YouTube summarization and get the chat ID
+          const chatTitle = `YouTube Summary: ${title.substring(0, 40)}${title.length > 40 ? '...' : ''}`
+          const wasChatCreated = !currentChatId
+          const chatId = await ensureChatExists(chatTitle)
+          
+          // Track messages locally during summarization to ensure we save the final state
+          let currentMessages: UIMessage[] = []
+          
+          // Only clear existing messages if we just created a new chat
+          // If appending to existing chat, keep the existing messages
+          if (wasChatCreated) {
+            setMessages([]);
+            currentMessages = []
+          } else {
+            // For existing chats, start with the current raw messages (UIMessage format)
+            currentMessages = [...rawMessages]
+          }
           // Clear any attached image
           setAttachedImage(null);
           
@@ -581,7 +692,8 @@ Provide a clear, well-structured summary focusing on the main points and key inf
           };
           
           // Add user message to chat immediately
-          setMessages((prevMessages) => [...prevMessages, userMessage]);
+          currentMessages = [...currentMessages, userMessage]
+          setMessages(currentMessages);
           
           // Prepare summarization prompt for AI with transcript
           const summarizationPrompt = `Please provide a concise and well-structured summary of the following YouTube video transcript.
@@ -605,7 +717,8 @@ Provide a clear summary that captures the main points and key takeaways from the
           };
           
           // Add empty AI message
-          setMessages((prevMessages) => [...prevMessages, aiMessage]);
+          currentMessages = [...currentMessages, aiMessage]
+          setMessages(currentMessages);
           
           // Stream the summary using transport
           await transport.streamSummary(summarizationPrompt, (chunk: string) => {
@@ -622,17 +735,18 @@ Provide a clear summary that captures the main points and key takeaways from the
             };
             
             // Update messages array
-            setMessages((prevMessages) => {
-              const messages = [...prevMessages];
-              const lastIndex = messages.length - 1;
-              if (lastIndex >= 0 && messages[lastIndex] && messages[lastIndex].id === aiMessageId) {
-                messages[lastIndex] = aiMessage;
-              }
-              return messages;
-            });
+            currentMessages = [...currentMessages]
+            const lastIndex = currentMessages.length - 1;
+            if (lastIndex >= 0 && currentMessages[lastIndex] && currentMessages[lastIndex].id === aiMessageId) {
+              currentMessages[lastIndex] = aiMessage;
+            }
+            setMessages(currentMessages);
           });
           
           console.log('[App] YouTube video summarization complete');
+          
+          // Save the final messages to chat using the chat ID we got
+          await saveCurrentMessages(currentMessages, chatId);
           
         } catch (error) {
           console.error('[App] Error summarizing YouTube video:', error);
@@ -651,7 +765,7 @@ Provide a clear summary that captures the main points and key takeaways from the
     chrome.runtime.onMessage.removeListener(handleMessage);
       }
     };
-  }, [transport, setMessages]);
+  }, [transport, setMessages, createChat, selectChat, currentChatId, saveCurrentMessages, messageAttachments, rawMessages]);
 
   // Extract download progress from messages
   useEffect(() => {

@@ -15,6 +15,21 @@ chrome.action?.onClicked?.addListener((tab) => {
 let sidebarReady = false;
 let pendingMessages: Array<{ action: string; data?: unknown }> = [];
 
+// Listen for port connections to detect sidebar lifecycle
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name === 'sidebar') {
+    console.log('[Background] Sidebar connected');
+    
+    // Reset ready state when sidebar reconnects
+    sidebarReady = false;
+    
+    port.onDisconnect.addListener(() => {
+      console.log('[Background] Sidebar disconnected');
+      sidebarReady = false;
+    });
+  }
+});
+
 // Listen for ready signal from sidebar
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.action === 'sidebarReady') {
