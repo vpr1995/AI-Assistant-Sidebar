@@ -1,296 +1,183 @@
 # Current Implementation Status
 
-## Phase Completion
+## Overview
 
-### ✅ Phase 1: Foundation & Setup (5/5 Complete)
-- Project dependencies installed
-- TypeScript configured with strict mode
-- Vite build system configured
-- Tailwind CSS initialized
-- shadcn/ui components available
+This Chrome extension is a **production-ready** local AI assistant with the following features fully implemented:
 
-### ✅ Phase 2: Chat Interface (4/4 Complete)
-- Chat component with message display
-- Message components (user/assistant differentiation)
-- Message input with auto-resize textarea
-- Typing indicator with animation
+-   **Chat Interface**: Full messaging UI with streaming responses
+-   **Chat Persistence**: All chats saved to chrome.storage.local, survive browser restarts
+-   **Multimodal Input**: Image upload support with Built-in AI for vision queries
+-   **Page Summarization**: Right-click context menu to summarize any web page
+-   **YouTube Video Summarization**: Extract and summarize YouTube video transcripts
+-   **Text Rewriting**: Rewrite selected text in 8 different tones
+-   **Theme System**: Light, Dark, and System mode with smooth animations
+-   **Multi-Chat Support**: Create, manage, and switch between multiple chat sessions
+-   **Voice Input**: Speech-to-text using browser's Speech Recognition API
 
-### ✅ Phase 3: AI Integration (4/4 Complete)
-- Built-in AI (Gemini Nano/Phi Mini) working
-- WebLLM fallback configured
-- Custom `ClientSideChatTransport` for streaming
-- Dual-provider detection and switching
-- Error handling and user notifications
+## Triple-Provider AI System
 
-### ✅ Phase 4: Page Summarization (4/4 Complete)
-- **Chrome Summarizer API**: Native browser API for optimized summaries
-- **Context Menu**: Right-click "Summarize this page" option
-- **Content Extraction**: Using @mozilla/readability
-- **Content Script**: Extracts and cleans page content
-- **Background Handler**: Routes extraction and opens sidebar
-- **Streaming Summary**: AI response streams with typing animation
-- **Dual Summarizer Architecture**: Primary Chrome API + LLM fallback
-- **Transport Methods**: summarizeText() and streamSummary()
-- **Chat Management**: Auto-clear on new summarization
-- **UI/UX**: Title (bold) + URL (white) in user message
-- **Content Truncation**: 15,000 characters
+The extension uses three AI providers with automatic fallback:
 
-### ✅ Phase 5: Text Rewrite Feature (8/8 Complete) ⭐
-- **8 Rewrite Tones**: Concise, Professional, Casual, Formal, Engaging, Simplified, Technical, Creative
-- **Context Menu**: Right-click "Rewrite text" submenu with tone options
-- **Text Selection**: Works with any selected text on any webpage
-- **Sidebar Integration**: Opens sidebar on rewrite click
-- **Message Passing**: Sends selected text and tone to sidebar via chrome.runtime.sendMessage()
-- **Streaming Rewrite**: Uses transport.streamSummary() for real-time feedback
-- **Chat Display**: Shows "Rewrite: **{Tone}**\n{originalText}" in user message
-- **AI Processing**: Tone-specific prompts for accurate rewrites
-- **Chain Rewrites**: Users can rewrite the rewritten text again
-- **Full TypeScript Support**: Complete type safety throughout
+1.  **Built-in AI (Primary)**: Chrome's native Gemini Nano - fastest, no downloads, supports multimodal
+2.  **WebLLM (Secondary)**: Browser-based LLM using WebLLM project
+3.  **Transformers.js (Tertiary)**: Hugging Face Transformers.js for broadest compatibility
 
-### ✅ Phase 6: UI Restructuring (5/5 Complete) ⭐ NEW - October 24, 2025
-- **Provider Selector Moved**: From header to message input area
-- **File Attachment Removed**: Completely cleaned from UI
-- **Header Simplified**: Now shows only status and settings
-- **Input Area Reorganized**: Provider selector + Microphone + Send button
-- **Better UX**: Contextual provider selection near message composition
+All providers support streaming responses with real-time typing animation.
 
-## Rewrite Feature Details
+## Features Implemented
 
-### New Files Created
-- `src/lib/rewrite-utils.ts` - Rewrite prompts, tone definitions, and utilities
+### ✅ Core Chat Features
+-   Message display with Markdown rendering and syntax highlighting
+-   Auto-resizing textarea input
+-   Typing indicator animation
+-   Copy-to-clipboard for messages
+-   **Chat persistence via chrome.storage.local** (max 50 chats, auto-pruning)
+-   **Multimodal image input** (Built-in AI only, base64 encoding)
+-   Chat titles with inline editing
+-   Auto-generated chat previews
+-   Provider selection (Built-in AI / WebLLM / Transformers.js)
 
-### Modified Files
-- `src/background.ts` - Added REWRITE_TONES array and context menu creation
-- `src/App.tsx` - Added rewriteText message handler in chrome.runtime.onMessage
-- Built successfully with no errors
+### ✅ Page Summarization
+-   Right-click context menu "Summarize this page"
+-   Content extraction using @mozilla/readability
+-   **Chrome Summarizer API** (primary) with streaming support
+-   LLM fallback (Built-in AI → WebLLM → Transformers.js)
+-   User preference system ('built-in' vs 'fallback')
+-   Streaming summaries with typing animation
+-   Content truncation to 15,000 characters
 
-### Supported Tones
-1. **Concise** - Shorter, more direct (removes unnecessary words)
-2. **Professional** - Formal business language
-3. **Casual** - Friendly, conversational tone
-4. **Formal** - Official, structured tone
-5. **Engaging** - Captivating, attention-grabbing
-6. **Simplified** - Plain language, easy to understand
-7. **Technical** - More technical depth and details
-8. **Creative** - Creative and imaginative version
+### ✅ YouTube Video Summarization
+-   Context menu "Summarize this video" on YouTube pages
+-   Transcript extraction using @danielxceron/youtube-transcript
+-   Supports all YouTube URL formats (watch, youtu.be, shorts, embeds)
+-   Displays video title, channel, and URL
+-   Streaming video summaries
 
-### Architecture
-- Uses same `transport.streamSummary()` as page summarization
-- Works with both Built-in AI and WebLLM providers
-- No model reloading (reuses existing AI session)
-- Text streams at ~50 tokens/second
-- Chat clears on new rewrite (like summarization)
-- Full privacy (local processing only)
+### ✅ Text Rewriting
+-   8 tone options: Concise, Professional, Casual, Formal, Engaging, Simplified, Technical, Creative
+-   Right-click submenu on selected text
+-   Streaming rewrites with real-time feedback
+-   Chain rewrites (rewrite the rewritten text)
+-   Tone-specific prompts for accurate results
 
-## UI Restructuring Details (Oct 24, 2025)
+### ✅ Voice Input
+-   Speech-to-text using browser's Speech Recognition API
+-   Permission handling via iframe
+-   Visual audio waveform during recording
+-   Works alongside text input
 
-### Changes Made
-1. **Removed ProviderSelector from Header**
-   - Was: `[●] Status | [Provider ▼] [⚙️ Settings]`
-   - Now: `[●] Status | [⚙️ Settings]` (cleaner)
+### ✅ Theme System
+-   Three modes: Light, Dark, System (follows OS)
+-   Smooth animated transitions
+-   Persistent preference saved to localStorage
+-   Real-time OS theme change detection
 
-2. **Added ProviderSelector to Message Input Area**
-   - Button order (left to right): `[Provider ▼] [🎤 Mic] [📤 Send]`
-   - Takes the place where file picker button used to be
-   - Contextually near where user composes messages
+### ✅ UI/UX Enhancements
+-   Provider selector moved to message input area (contextual placement)
+-   Settings menu with theme selector and chat reset
+-   Download progress dialog for model downloads
+-   WebLLM info banner (dismissible)
+-   Auto-scroll to bottom on new messages
+-   Responsive sidebar layout
+-   Image preview in message input
+-   Image upload button (disabled for non-Built-in AI providers)
 
-3. **Removed File Attachment Functionality**
-   - ❌ Removed Paperclip icon button
-   - ❌ Removed drag-and-drop file support
-   - ❌ Removed file preview area
-   - ❌ Removed file upload dialog
-   - ❌ Removed all file-related event handlers
+## Key Files
 
-### Files Modified
+### Core Application
+-   `src/App.tsx` - Main application with chat logic, message handlers, and multimodal image handling
+-   `src/main.tsx` - React entry point with theme provider
+-   `src/background.ts` - Service worker for context menus and message routing
+-   `src/content.ts` - Content script for page/YouTube extraction
 
-**src/App.tsx**:
-- Removed `ProviderSelector` import from header
-- Removed `<ProviderSelector>` JSX from header
-- Added provider props to Chat component:
-  - `preferredProvider`
-  - `onProviderChange`
-  - `availableProviders`
+### AI & Transport
+-   `src/lib/client-side-chat-transport.ts` - Triple-provider system with streaming and multimodal support
+-   `src/lib/summarizer-utils.ts` - Chrome Summarizer API + LLM fallback
+-   `src/lib/rewrite-utils.ts` - Text rewrite tones and prompts
+-   `src/lib/youtube-utils.ts` - YouTube transcript extraction utilities
+-   `src/lib/image-utils.ts` - Image file reading and base64 conversion
 
-**src/components/ui/message-input.tsx**:
-- Added provider props to `MessageInputBaseProps` interface
-- Imported `ProviderSelector` component
-- Removed file attachment imports (Paperclip, FilePreview)
-- Removed all file attachment functions
-- Simplified component to remove file UI
-- Added ProviderSelector to bottom-right button controls
+### Storage & State
+-   `src/lib/chat-storage.ts` - Chat persistence to chrome.storage.local (CRUD operations)
+-   `src/lib/chat-helpers.ts` - Chat management utilities
+-   `src/lib/settings-storage.ts` - User preferences storage (theme, summarizer preference)
 
-**src/components/ui/chat.tsx**:
-- Added provider props to `ChatPropsBase` interface
-- Updated `Chat` function destructuring to receive provider props
-- Changed `allowAttachments` from `true` to `false`
-- Removed file-related props from MessageInput usage
-- Updated ChatForm to support both function and direct element children
+### Hooks
+-   `src/hooks/use-chats.ts` - Multi-chat state management
+-   `src/hooks/use-chat-persistence.ts` - Auto-save chat to storage
+-   `src/hooks/use-theme.ts` - Theme state with OS detection
+-   `src/hooks/use-voice-speech-recognition.ts` - Voice input integration
+-   `src/hooks/use-chrome-message-listener.ts` - Handles streaming actions (summarize, rewrite)
 
-### Data Flow (Provider Selection)
-```
-App.tsx (state owner)
-  ├─ preferredProvider
-  ├─ onProviderChange callback
-  └─ availableProviders list
-    ↓
-Chat.tsx (passes through)
-    ↓
-MessageInput.tsx (renders)
-    ↓
-ProviderSelector (user selects provider)
-    ↓
-Callback triggers App state update
-    ↓
-Next message uses selected provider
-```
-
-## File Changes Summary
-
-### Phase 4 Files (Page Summarization)
-- `src/content.ts` - Content script for page extraction
-- `src/lib/summarizer-utils.ts` - Chrome Summarizer API utilities
-
-### Phase 5 Files (Text Rewrite)
-- `src/lib/rewrite-utils.ts` - Rewrite utilities and prompts (137 lines)
-
-### Phase 6 Files (UI Restructuring) ⭐ NEW
-- Updated `src/App.tsx` - Header cleanup, provider props to Chat
-- Updated `src/components/ui/message-input.tsx` - Provider selector integration
-- Updated `src/components/ui/chat.tsx` - Props and ChatForm updates
-
-### Modified Files (All Phases)
-- `public/manifest.json` - Permissions and content scripts
-- `vite.config.ts` - Build entry points
-- `src/background.ts` - Context menus
-- `src/App.tsx` - Message handlers
-- `src/lib/client-side-chat-transport.ts` - Streaming methods
-- `src/App.css` - Styling
-
-## Build Information (Latest - Oct 24, 2025)
+## Build Information
 
 ### Build Output
 ```
 dist/
 ├── index.html                     # Sidebar HTML
 ├── background.js                  # Background service worker
-├── content.js                     # Content script (35KB gzipped)
-├── assets/
-│   ├── main-*.js                  # Main app (2.2MB gzipped)
-│   ├── main-*.css                 # Styles (43.86KB)
-│   └── transformers-worker-*.js   # AI models (5.5MB)
+├── content.js                     # Content script
+├── transformers/                  # ONNX runtime assets (patched)
+└── assets/
+    ├── main-*.js                  # Main app bundle
+    ├── main-*.css                 # Styles
+    ├── transformers-worker-*.js   # Transformers.js worker
+    └── webllm-worker-*.js         # WebLLM worker
 ```
 
-### Bundle Stats
-- Total size: ~6.4MB (includes AI model data)
-- Main JS: ~2.2MB gzipped
-- Styles: ~43.86KB (optimized)
-- Content script: ~35KB gzipped
-- Modules transformed: 2,673
-- Build time: ~12 seconds
+### Build Stats
+-   Total modules: ~2,700
+-   Build time: ~12 seconds
+-   No TypeScript errors
+-   All strict mode checks passing
 
-### Build Verification
-```
-✓ 2673 modules transformed
-✓ No compilation errors
-✓ All files generated successfully
-```
+## Testing Status
 
-## Testing Checklist
-
-### Phase 4: Page Summarization
-- ✅ Chat works with both Built-in AI and WebLLM
-- ✅ Streaming responses display correctly
-- ✅ Typing animation shows during generation
-- ✅ Right-click context menu appears (Summarize this page)
-- ✅ Page content extraction works
-- ✅ Sidebar opens on summarize click
-- ✅ User message shows title and URL
-- ✅ AI response streams character-by-character
-- ✅ Chat clears on new summarization
-
-### Phase 5: Text Rewrite
-- ✅ Context menu shows "Rewrite text" with 8 tone options
-- ✅ All tones visible in submenu
-- ✅ Clicking tone opens sidebar
-- ✅ Chat shows correct user message format
-- ✅ Rewritten text streams correctly
-- ✅ Works with both Built-in AI and WebLLM
-- ✅ Can rewrite the rewritten text (chain rewrites)
-
-### Phase 6: UI Restructuring ⭐ NEW
-- ✅ ProviderSelector appears in input area (bottom-right)
-- ✅ File picker button completely removed
-- ✅ Provider selection dropdown works
-- ✅ Header is cleaner (no provider dropdown)
-- ✅ Microphone button still present and functional
-- ✅ Send button still present and functional
-- ✅ No TypeScript errors
-- ✅ Build successful with 2,673 modules
+All features tested and working:
+-   ✅ Chat with all three AI providers
+-   ✅ Chat persistence across browser restarts
+-   ✅ Multimodal image input with Built-in AI
+-   ✅ Page summarization on various websites
+-   ✅ Chrome Summarizer API with LLM fallback
+-   ✅ YouTube video summarization
+-   ✅ Text rewriting with all 8 tones
+-   ✅ Voice input with speech recognition
+-   ✅ Multi-chat creation and switching
+-   ✅ Theme switching with animations
+-   ✅ Model download progress tracking
+-   ✅ Provider switching without page reload
 
 ## Known Limitations
 
-1. **Model Size**: Full AI models take time to download first time
-2. **Memory Usage**: Large conversations may impact browser memory
-3. **WebGPU**: Not available on all browsers, falls back to WASM
-4. **Page Parsing**: Some complex pages may not parse correctly
-5. **Chrome Summarizer API**: Only available in Chrome 128+
-6. **Text Length**: Rewrite works best with selections up to ~2000 characters
+1.  **Model Download**: First use requires downloading models (360MB-1GB for WebLLM/Transformers.js)
+2.  **Browser Support**: Built-in AI requires Chrome 128+ with feature flag enabled
+3.  **Memory Usage**: Large chat histories may impact browser performance
+4.  **YouTube Transcripts**: Only works on videos with available captions
+5.  **Voice Input**: Requires microphone permissions
+6.  **Multimodal Support**: Image input only works with Built-in AI provider
+7.  **Image Persistence**: Images not saved in chat history (privacy consideration)
+8.  **Chrome Summarizer**: Requires Chrome 128+ and may need feature flag
 
-## Dependencies
+## Architecture Highlights
 
-### No New Dependencies Added Since Phase 4
-- All new phases use existing dependencies
-- UI restructuring: no new packages
+-   **Triple-Provider Fallback**: Ensures AI works in all scenarios
+-   **Transformers.js Patch**: Custom solution for Chrome extension CSP constraints
+-   **Streaming Everywhere**: All AI responses stream in real-time
+-   **Complete Privacy**: All processing happens locally, zero external API calls
+-   **Multi-Chat Architecture**: Full chat history management with chrome.storage.local
+-   **Multimodal Support**: Image attachments with Built-in AI using base64 encoding
+-   **Native Summarization**: Chrome Summarizer API for optimized performance
+-   **Modular Design**: Hooks and utilities for clean separation of concerns
 
-### Existing Dependencies Used
-- `@built-in-ai/core` - Chrome built-in AI
-- `@built-in-ai/web-llm` - WebLLM with transformers.js
-- `ai` (Vercel AI SDK) - streamText() for streaming
-- `react` - UI framework
-- `tailwindcss` - Styling
+## Current Status
 
-## Recent Changes Timeline
+**Production-Ready** - All planned features implemented and tested. Extension is stable and ready for use.
 
-### October 23, 2025 (Phase 5)
-- Implemented Text Rewrite feature with 8 tones
-- Added context menu integration
-- Added streaming rewrite support
+**Advanced Features**:
+-   ✅ Chat persistence with chrome.storage.local
+-   ✅ Multimodal image input (Built-in AI only)
+-   ✅ Chrome Summarizer API with LLM fallback
+-   ✅ Automatic chat title generation
+-   ✅ Auto-pruning (max 50 chats)
 
-### October 24, 2025 (Phase 6) ⭐ NEW
-- Moved ProviderSelector from header to input area
-- Removed file attachment functionality
-- Simplified header UI
-- Updated component data flow
-- Verified build: Zero errors, 2,673 modules
-
-## Architecture Notes
-
-**Provider Selection Flow**:
-- All provider selections must update App state
-- Chat component passes provider props to MessageInput
-- MessageInput renders ProviderSelector in controls
-- User selection triggers callback → state update → UI re-render
-
-**File Attachment Status**:
-- Completely removed as of Oct 24, 2025
-- All references cleaned up
-- ChatForm still supports render function children for compatibility
-- Can be re-added later if needed (backward compatible)
-
-**Never bypass these patterns**:
-- Provider selection through App state → Chat → MessageInput
-- Streaming through transport.streamSummary()
-- Message handlers through App.tsx chrome.runtime.onMessage
-
-## Status Summary
-
-- **Total Features Implemented**: 2 major features (Summarization + Rewrite)
-- **UI Iterations**: 1 major restructuring (Provider selector repositioned)
-- **Context Menus**: 1 parent + 8 submenu items for rewrite
-- **Message Handlers**: 2 (summarizePage + rewriteText)
-- **Build Status**: ✅ Successful (no errors, 2,673 modules)
-- **TypeScript Strict Mode**: ✅ All types enforced
-- **Feature Completeness**: ✅ 100% implementation done
-- **UI/UX Quality**: ✅ Professional, clean interface
-
-**Current Phase**: ✅ **COMPLETE - PRODUCTION READY** (as of Oct 24, 2025)
+For detailed information on advanced features, see `advanced-features.md` memory.

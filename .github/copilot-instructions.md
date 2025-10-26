@@ -2,23 +2,24 @@
 
 ## 🎯 Project Overview
 
-Privacy-first Chrome sidebar extension running LLM inference **entirely in-browser** (zero API calls). Dual-provider AI architecture with Chrome Built-in AI (Gemini Nano) as primary, WebLLM (Llama 3.2/SmolLM2) as fallback. Includes page summarization via right-click context menu.
+**Privacy-first Chrome sidebar extension** running LLM inference **entirely in-browser** (zero API calls). Triple-provider AI architecture with automatic fallback: Chrome Built-in AI (Gemini Nano) → WebLLM (Llama 3.2) → Transformers.js (Hugging Face). Production-ready with advanced features: multi-chat persistence, multimodal vision, voice input, YouTube/page summarization, and text rewriting.
 
-**Tech Stack**: React 19 + Vite 7 + TypeScript + Tailwind CSS + shadcn/ui + Vercel AI SDK + @built-in-ai/core + @mozilla/readability
+**Tech Stack**: React 19 + Vite 7 + TypeScript + Tailwind CSS + shadcn/ui + Vercel AI SDK + @built-in-ai/core + @built-in-ai/web-llm + @built-in-ai/transformers-js + @mozilla/readability
 
 ---
 
 ## 🏗️ Critical Architecture Patterns
 
-### 1. Dual-Provider AI System (`src/lib/client-side-chat-transport.ts`)
+### 1. Triple-Provider AI System (`src/lib/client-side-chat-transport.ts`)
 
-The core innovation is `ClientSideChatTransport` implementing Vercel AI SDK's `ChatTransport` interface for browser-based inference:
+The core innovation is `ClientSideChatTransport` implementing Vercel AI SDK's `ChatTransport` interface for browser-based inference with automatic fallback:
 
 ```typescript
-// Provider detection priority: Built-in AI → WebLLM
-async detectAvailableProvider(): 'built-in-ai' | 'web-llm'
+// Provider detection priority: Built-in AI → WebLLM → Transformers.js
+async detectAvailableProvider(): 'built-in-ai' | 'web-llm' | 'transformers-js'
   ├─ doesBrowserSupportBuiltInAI() → builtInAI().availability()
-  └─ Falls back to webLLM('Llama-3.2-1B-Instruct-q4f16_1-MLC')
+  ├─ Falls back to webLLM('Llama-3.2-1B-Instruct-q4f16_1-MLC')
+  └─ Final fallback: transformersJS('SmolLM2-360M-Instruct')
 
 // sendMessages() handles streaming with download progress:
 sendMessages() → createUIMessageStream() → writer.merge(result.toUIMessageStream())
@@ -29,102 +30,100 @@ streamSummary() → Streaming with callback for real-time UI updates
 
 // Progress tracking:
 onDownloadProgress() → Callback for download/extraction progress updates
+
+// Multimodal support (Built-in AI only):
+Extracts imageAttachment from request body → Converts to multimodal message format
 ```
 
 **Key implementation details**:
-- **Model caching**: `cachedWebLLMModel` prevents re-initialization across messages
-- **Progress tracking**: `onDownloadProgress()` callback emits progress during model download (downloading, extracting, complete)
+- **Model caching**: `cachedWebLLMModel` and `cachedTransformersModel` prevent re-initialization
 - **Progress callback format**: `{ status: 'downloading'|'extracting'|'complete', progress: 0-100, message: string }`
-- **Provider switching**: `setPreferredProvider()` resets detection to allow user override
-- **Message conversion**: Converts between `BuiltInAIUIMessage`/`WebLLMUIMessage` and UI `Message` types
-- **Summarization support**: Added `streamSummary()` method for streaming page summaries
+- **Multimodal handling**: Only Built-in AI supports image input; extracts `imageAttachment` from body
+- **Provider switching**: `setPreferredProvider()` allows user override
+
+**Provider Capabilities Matrix**:
+| Feature | Built-in AI | WebLLM | Transformers.js |
+|---------|-------------|--------|-----------------|
+| Chat | ✅ | ✅ | ✅ |
+| Streaming | ✅ | ✅ | ✅ |
+| Multimodal (Images) | ✅ | ❌ | ❌ |
+| Download Required | ✅ | ✅ | ✅ |
 
 **When modifying AI integration**:
-- Never bypass `ClientSideChatTransport` - all AI calls must go through it
+- All AI calls MUST go through `ClientSideChatTransport`
 - Use `writer.merge()` to combine download progress and text streams
-- Check `model.availability()` before streaming to show proper UI states
-- For summarization, use `streamSummary()` to get real-time callback updates
-- For progress tracking, use `onDownloadProgress(callback)` to register and handle progress updates
+- Only enable image upload when `activeProvider === 'built-in-ai'`
+- Use `streamSummary()` for page/YouTube/rewrite features
 
-### 2. Dual-Summarizer System for Page Summarization
+### 2. Chrome Extension Message Flow & Multi-Feature Architecture
 
-**Page Summarization** (right-click → AI summary):
+**Critical**: `content.ts` runs in page context, `background.ts` in service worker, `App.tsx` in sidebar. Use `chrome.runtime.sendMessage()` for cross-context communication.
 
+**Page Summarization Flow**:
 ```
-1. User right-clicks → background.ts contextMenus.onClicked
-2. background.ts → chrome.tabs.sendMessage('extractPageContent') to content.ts
-3. content.ts → @mozilla/readability.parse() extracts article
-4. background.ts → chrome.runtime.sendMessage('summarizePage', data)
-5. App.tsx chrome.runtime.onMessage → summarizeWithFallback() called
-6. summarizeWithFallback() tries:
-   ├─ Chrome Summarizer API (if available)
-   └─ LLM fallback (Built-in AI or WebLLM)
-7. AI streams response character-by-character to chat UI
+Right-click → background.ts → content.ts (@mozilla/readability) 
+→ App.tsx (summarizeWithFallback: Chrome Summarizer API → LLM fallback)
 ```
 
-**Key implementation details**:
-- **Summarizer detection**: `checkChromeSummarizerAvailability()` checks for Chrome Summarizer API
-- **Dual-provider approach**: `summarizeWithFallback()` tries Chrome API first, falls back to LLM
-- **Streaming callback**: Both providers use same callback interface for real-time UI updates
-- **Content limit**: Page content truncated to 15,000 characters for processing
-- **Chat management**: Previous messages cleared on new summarization for clean context
-
-**When modifying summarization**:
-- Never bypass `summarizeWithFallback()` - all summaries must go through it
-- Use callback interface for streaming chunks (works with both providers)
-- Check availability before using Chrome Summarizer API
-- Always provide LLM fallback function in case Chrome API fails or isn't available
-
-### 3. Chrome Extension Message Flow
-
-**Page Summarization** (right-click → AI summary):
-
+**YouTube Summarization Flow**:
 ```
-1. User right-clicks → background.ts contextMenus.onClicked
-2. background.ts → chrome.tabs.sendMessage('extractPageContent') to content.ts
-3. content.ts → @mozilla/readability.parse() extracts article
-4. background.ts → chrome.runtime.sendMessage('summarizePage', data)
-5. App.tsx chrome.runtime.onMessage → setMessages() + transport.streamSummary()
-6. AI streams response character-by-character to chat UI
+Right-click on YouTube → content.ts (@danielxceron/youtube-transcript)
+→ App.tsx → AI streams summary
 ```
 
-**Critical**: `content.ts` runs in page context, `background.ts` in service worker context, `App.tsx` in sidebar context. Use `chrome.runtime.sendMessage()` for cross-context communication.
-
-### 3.5 Model Download Progress & User Feedback UI
-
-**Download Progress Dialog** (Modal popup during model download):
-
+**Text Rewriting Flow**:
 ```
-1. App.tsx sets up: transport.onDownloadProgress((progress) => setModelDownloadProgress(...))
-2. ClientSideChatTransport emits progress:
-   - First call: { status: 'downloading', progress: 0, message: 'Downloading model...' }
-   - Ongoing: { status: 'downloading', progress: 45, message: 'Downloading model...' }
-   - Complete: { status: 'complete', progress: 100, message: 'Done!' }
-3. DownloadProgressDialog component displays:
-   - Animated spinner + progress bar with percentage
-   - Auto-dismisses 1 second after 100% complete
-4. WebLLM info banner (stays in header):
-   - Shows "Using WebLLM with local model..." message
-   - Has dismiss X button for user to hide it
-   - State: dismissedWebLLMInfo controls visibility
+Select text → Right-click → Choose tone (8 options)
+→ background.ts → App.tsx → AI streams rewritten text
 ```
 
-**Key implementation details**:
-- **Progress dialog**: `src/components/ui/download-progress-dialog.tsx` with Framer Motion animations
-- **Progress callback**: Called 3x per provider (first, ongoing, complete) from `handleBuiltInAI()` and `handleWebLLM()`
-- **Auto-dismiss**: Uses `setTimeout(() => setModelDownloadProgress(null), 1000)` after completion
-- **Info banner**: `src/App.tsx` lines ~407-421, conditional render based on `activeProvider === 'web-llm' && !dismissedWebLLMInfo`
-- **Dismiss button**: X icon (Lucide React) with hover effects, updates `dismissedWebLLMInfo` state
+**Voice Input Flow**:
+```
+Mic button → Permission (iframe-based) → getUserMedia() 
+→ Web Speech API (continuous=true, interimResults=true)
+→ Auto-stops after 2s silence → Transcript to input
+```
 
-**When modifying progress UI**:
-- Progress dialog auto-hides after 1s - don't manually hide before that
-- Info banner dismiss is session-based - resets on page reload
-- Both UI elements must not interfere with chat flow (non-blocking)
-- Progress updates should be emitted by transport, not parsed from message parts
+### 3. Multi-Chat Persistence & State Management
 
-Extension requires **multi-entry builds**:
+**Architecture** (`src/lib/chat-storage.ts` + `chrome.storage.local`):
+- Max 50 chats (auto-prunes oldest)
+- Auto-save via `use-chat-persistence` hook
+- Images NOT persisted (privacy)
+- All operations through `chat-storage.ts` functions
 
 ```typescript
+interface Chat {
+  id: string                // nanoid()
+  title: string            // User-editable
+  messages: ChatMessage[]  // Full history
+  preview: string          // First 100 chars
+  updatedAt: number        // For sorting
+}
+```
+
+**When modifying**:
+- Never mutate chat state directly - use `chat-helpers.ts` functions
+- Images excluded from persistence (multimodal privacy)
+- Enforce 50 chat limit to prevent storage bloat
+
+### 4. Model Download Progress & User Feedback UI
+
+Progress dialog (`src/components/ui/download-progress-dialog.tsx`):
+- Animated spinner + progress bar
+- Auto-dismisses 1s after 100% complete
+- Callback format: `{ status: 'downloading'|'extracting'|'complete', progress: 0-100, message: string }`
+
+**When modifying**:
+- Don't manually hide progress dialog before 1s auto-dismiss
+- Progress updates emitted by transport, not parsed from messages
+
+### 5. Multi-Entry Build System
+
+Extension requires **multi-entry builds** with custom Vite config:
+
+```typescript
+// vite.config.ts
 rollupOptions: {
   input: {
     main: './index.html',        // Sidebar UI (React app)
@@ -139,9 +138,19 @@ rollupOptions: {
     }
   }
 }
+
+// Custom plugin: copyTransformersAssetsPlugin()
+// Copies ONNX runtime files to dist/transformers/ for Transformers.js
 ```
 
-**When adding new scripts**: Add to `input` and ensure proper output naming to match `manifest.json`.
+**Transformers.js Chrome Extension Patch**:
+- **Vite plugin**: Copies `.wasm` and `.mjs` files from `node_modules` to `dist/transformers/`
+- **Worker config**: `src/transformers-worker.ts` sets `env.localModelPath = chrome.runtime.getURL('transformers/')`
+- **Manifest**: Exposes `transformers/*.wasm` and `transformers/*.mjs` as `web_accessible_resources`
+
+**Critical**: Don't modify Transformers.js initialization without understanding this patch. Model files MUST be in `dist/transformers/` and web-accessible.
+
+**When adding new scripts**: Add to `input` object and ensure proper output naming to match `manifest.json`.
 
 ---
 
@@ -155,11 +164,6 @@ npm run build           # Build to dist/
 ```
 
 **Dev mode caveat**: `npm run dev` runs Vite dev server but Chrome extension APIs (`chrome.runtime`, `chrome.storage`) are unavailable. Must test built extension for full functionality.
-
-### Testing AI Providers
-- **Built-in AI**: Enable `chrome://flags/#prompt-api-for-gemini-nano`, restart Chrome
-- **WebLLM fallback**: Works in any modern browser, downloads models on first use (~360MB-1GB)
-- **Check provider**: Open DevTools in sidebar → Console shows `[App] Provider detection complete: built-in-ai`
 
 ### Debugging
 - **Sidebar UI**: Right-click sidebar → Inspect (opens DevTools)
@@ -214,33 +218,32 @@ function ComponentName({ prop }: Props) {
 ## 🚨 Common Pitfalls
 
 ### 1. React Strict Mode Double Rendering
-In dev mode, components mount twice. **Solution**: Use `useMemo` for singleton instances:
+Use `useMemo` for singleton instances:
 ```tsx
 const transport = useMemo(() => new ClientSideChatTransport('auto'), [])
 ```
 
 ### 2. Chrome API Availability in Dev
-`chrome.runtime` is `undefined` in Vite dev server. **Solution**: Guard with checks:
+Guard with checks since `chrome.runtime` is `undefined` in Vite dev server:
 ```tsx
 if (typeof chrome !== 'undefined' && chrome.runtime) {
   chrome.runtime.onMessage.addListener(...)
 }
 ```
 
-### 3. Horizontal Scrollbar in Sidebar
-Fixed-width content causes scrollbars. **Solution**: Use `overflow-x-hidden` on root container and `max-w-full` on children.
-
-### 4. Provider Detection Race Conditions
-`detectActiveProvider()` is async but UI renders immediately. **Solution**: Show loading state until `isClient` true and `activeProvider` detected.
+### 3. Provider Detection Race Conditions
+Show loading state until `isClient` true and `activeProvider` detected.
 
 ---
 
 ## 📦 Key Dependencies
 
 - **`@ai-sdk/react`**: Provides `useChat` hook - handles message state, streaming, error handling
-- **`@built-in-ai/core`**: Chrome's native Gemini Nano API wrapper
-- **`@built-in-ai/web-llm`**: WebLLM wrapper (Llama 3.2, SmolLM2, Qwen2.5 models)
+- **`@built-in-ai/core`**: Chrome's native Gemini Nano API wrapper https://github.com/jakobhoeg/built-in-ai/blob/main/packages/built-in-ai/README.md
+- **`@built-in-ai/web-llm`**: WebLLM wrapper (Llama 3.2) https://github.com/jakobhoeg/built-in-ai/blob/main/packages/web-llm/README.md
+- **`@built-in-ai/transformers-js`**: Transformers.js wrapper (Llama 3.2) https://github.com/jakobhoeg/built-in-ai/blob/main/packages/transformers-js/README.md
 - **`@mozilla/readability`**: Extracts main article content from web pages
+- **`@danielxceron/youtube-transcript`**: Fetches YouTube video transcripts
 - **`highlight.js`**: Code syntax highlighting (replaced Shiki to reduce bundle by 330 modules)
 - **`react-markdown`**: Markdown rendering in chat messages
 - **`Chrome Summarizer API`**: Native browser API for optimized page summaries (built into Chrome 128+)
@@ -251,12 +254,13 @@ Fixed-width content causes scrollbars. **Solution**: Use `overflow-x-hidden` on 
 
 - **AI provider selection**: `src/lib/client-side-chat-transport.ts` → `detectAvailableProvider()`
 - **Message streaming**: `src/lib/client-side-chat-transport.ts` → `sendMessages()` → `createUIMessageStream()`
-- **Progress tracking**: `src/lib/client-side-chat-transport.ts` → `onDownloadProgress()` callback
-- **Download progress dialog**: `src/components/ui/download-progress-dialog.tsx` with Framer Motion animations
-- **WebLLM info banner**: `src/App.tsx` → WebLLM fallback info message with dismiss button
 - **Page summarization**: `src/background.ts` + `src/content.ts` + `src/App.tsx` (`chrome.runtime.onMessage`)
 - **Summarizer API**: `src/lib/summarizer-utils.ts` → `summarizeWithFallback()` with Chrome Summarizer + LLM fallback
-- **Chat UI state**: `src/App.tsx` → `useChat` hook from `@ai-sdk/react`
+- **YouTube summarization**: `src/lib/youtube-utils.ts` → Transcript extraction and formatting
+- **Text rewriting**: `src/lib/rewrite-utils.ts` → 8 tone presets with specific prompts
+- **Voice input**: `src/hooks/use-voice-speech-recognition.ts` → Web Speech API wrapper
+- **Chat persistence**: `src/lib/chat-storage.ts` → CRUD operations with chrome.storage.local
+- **Multimodal input**: `src/lib/image-utils.ts` → Image to base64 conversion
 - **Build config**: `vite.config.ts` → `rollupOptions.input` for multi-entry builds
 - **Extension manifest**: `public/manifest.json` → permissions, CSP, content scripts
 
@@ -270,33 +274,28 @@ Components follow **shadcn/ui** patterns. When adding new UI:
 3. Compose in parent components (e.g., `Chat` composes `ChatMessage`, `MessageInput`)
 4. Leverage `framer-motion` for animations (e.g., typing indicator bouncing dots)
 
-Example: `components/ui/typing-indicator.tsx` uses `motion.div` with `animate` prop for smooth animations.
-
 ---
 
 ## 🛠️ Making Changes
 
 ### Adding New AI Provider
 1. Create provider check function in `client-side-chat-transport.ts`
-2. Add to `detectAvailableProvider()` logic
+2. Add to `detectAvailableProvider()` logic with proper priority order
 3. Implement `handle{Provider}()` method with progress tracking
-4. Update UI to show provider status in `App.tsx`
+4. Update `PROVIDER_CONFIGS` with model name and capabilities
+5. Update UI to show provider status in `App.tsx`
 
 ### Adding New Chrome Extension Feature
 1. Add permission to `public/manifest.json`
 2. Implement logic in `src/background.ts` (for background tasks) or `src/content.ts` (for page interaction)
 3. Use `chrome.runtime.sendMessage()` to communicate with sidebar
 4. Handle message in `App.tsx` `useEffect` → `chrome.runtime.onMessage.addListener`
+5. For streaming responses, use `transport.streamSummary()` with callback
 
-### Optimizing Bundle Size
-- Check bundle: `npm run build` → inspect `dist/assets/` sizes
-- Use dynamic imports for large dependencies: `const module = await import('heavy-lib')`
-- For markdown highlighting, only import specific languages in `highlight.js`
-
----
-
-**Last Updated**: October 17, 2025 | **Status**: Active development | **Build**: Production-ready MVP
-- ✅ Model download progress dialog with Framer Motion animations
-- ✅ WebLLM info banner with dismiss button
-- ✅ Callback-based progress tracking (no message extraction needed)
-
+### Adding New Chat Feature
+1. Define data structure in `src/types/chat.ts`
+2. Add storage operations to `src/lib/chat-storage.ts`
+3. Create helper functions in `src/lib/chat-helpers.ts`
+4. Add UI component to `src/components/ui/`
+5. Integrate with `useChats` hook for state management
+6. Ensure auto-save via `use-chat-persistence` hook

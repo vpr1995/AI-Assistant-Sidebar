@@ -1,326 +1,105 @@
-# Chrome Extension - AI Assistant with Page & Video Summarization
+# Chrome Extension: Local AI Assistant - Project Overview
 
-## Project Purpose
-A **privacy-first, local AI assistant** as a Chrome sidebar extension with page summarization, text rewriting, and YouTube video summarization features. The extension runs AI models directly in the browser using WebGPU/WebAssembly, providing complete data privacy with zero external API calls.
+## 🎯 Project Purpose
+
+A **privacy-first, local AI assistant** built as a Chrome sidebar extension. It features page summarization, text rewriting, and YouTube video summarization. The extension leverages in-browser AI models, ensuring complete data privacy with zero external API calls.
 
 ### Core Features
-- **Text Generation**: LLM chat interface with streaming responses
-- **Page Summarization**: Right-click context menu to summarize any web page
-- **YouTube Video Summarization**: Right-click context menu to summarize YouTube videos (NEW)
-- **Text Rewriting**: Right-click to rewrite text in 8 different tones
-- **Complete Privacy**: 100% local processing, no external API calls
-- **Offline Functionality**: Models cached locally after first use
-- **Streaming UI**: Character-by-character responses with typing animation
 
-## Tech Stack
+-   **Text Generation**: An LLM-powered chat interface with streaming responses.
+-   **Multi-Chat Support**: Create and manage multiple chat sessions with persistent history.
+-   **Page Summarization**: Summarize any web page via a right-click context menu.
+-   **YouTube Video Summarization**: Summarize YouTube videos by extracting transcripts.
+-   **Text Rewriting**: Rewrite selected text in one of eight different tones.
+-   **Voice Input**: Speech-to-text using the browser's Speech Recognition API.
+-   **Complete Privacy**: All processing is done locally; no data leaves the user's device.
+-   **Offline Functionality**: AI models are cached locally after the first use.
+-   **Streaming UI**: Responses are streamed character-by-character with a typing animation.
+-   **Theming**: Light, Dark, and System theme options with smooth animations.
+-   **Model Download Progress**: A dialog indicates the download progress of AI models.
 
-### Core Framework
-- **React 19** - Modern functional components with hooks
-- **Vite 7** - Fast build tool with HMR
-- **TypeScript** - Strict type checking enabled
+## 🛠️ Tech Stack
+
+### Core Frameworks
+
+-   **React 19**: For building a modern, functional component-based UI.
+-   **Vite 7**: A fast build tool with Hot Module Replacement (HMR).
+-   **TypeScript**: For strict type-checking and improved code quality.
 
 ### UI & Styling
-- **Tailwind CSS** - Utility-first CSS framework
-- **shadcn/ui** - React component library
-- **Framer Motion** - Smooth animations
 
-### AI Runtime
-- **Vercel AI SDK (`ai`)** - Standardized AI streaming APIs
-- **@ai-sdk/react** - useChat hook for client-side AI
-- **@built-in-ai/core** - Chrome's built-in Gemini Nano/Phi Mini (PRIMARY)
-- **@built-in-ai/web-llm** - WebLLM with model selection (FALLBACK)
-- **WebGPU** - Hardware acceleration (with WASM fallback)
+-   **Tailwind CSS**: A utility-first CSS framework for rapid UI development.
+-   **shadcn/ui**: A collection of reusable UI components.
+-   **Framer Motion**: For creating smooth and professional animations.
+
+### AI & Machine Learning
+
+-   **Vercel AI SDK (`ai`)**: Provides standardized AI streaming APIs.
+-   **@ai-sdk/react**: Includes the `useChat` hook for client-side AI state management.
+-   **@built-in-ai/core**: The primary provider, utilizing Chrome's built-in Gemini Nano.
+-   **@built-in-ai/web-llm**: The secondary fallback provider, using WebLLM.
+-   **@built-in-ai/transformers-js**: The tertiary fallback provider, using Hugging Face Transformers.js.
+-   **WebGPU / WASM**: For hardware-accelerated in-browser model inference.
 
 ### Content Processing
-- **@mozilla/readability** - Extracts main article content from any webpage
-- **@danielxceron/youtube-transcript** - Extracts YouTube video transcripts (NEW)
-- **react-markdown** - Renders markdown in messages with syntax highlighting
 
-### Chrome Extension
-- **Manifest V3** - Modern extension format
-- **Side Panel API** - For the sidebar
-- **Content Scripts** - Page content extraction and YouTube transcript extraction
-- **Background Service Worker** - Context menu and message routing
+-   **@mozilla/readability**: For extracting the main content from web pages.
+-   **@danielxceron/youtube-transcript**: For fetching YouTube video transcripts.
+-   **react-markdown**: For rendering Markdown content in chat messages.
+-   **highlight.js**: For syntax highlighting in code blocks.
 
-## Architecture
+### Chrome Extension APIs
 
-### Dual-Provider AI System
-1. **Primary**: Chrome Built-in AI (`@built-in-ai/core`)
-   - Uses native Gemini Nano (Chrome) or Phi Mini (Edge)
-   - Zero model download after first use (Chrome manages caching)
-   - Fastest inference, hardware-optimized
+-   **Manifest V3**: The modern format for Chrome extensions.
+-   **Side Panel API**: For displaying the extension's UI in the browser sidebar.
+-   **Content Scripts**: For interacting with web page content.
+-   **Background Service Worker**: For managing context menus and message routing.
 
-2. **Fallback**: WebLLM (`@built-in-ai/web-llm`)
-   - Used when Built-in AI unavailable
-   - Manual model selection from multiple options
-   - User manages cache
+## 🏗️ Architecture
 
-### Feature Flows
+### Triple-Provider AI System
 
-#### Page Summarization Flow
-```
-User right-clicks on page → "Summarize this page"
-    ↓
-Background service worker receives context menu click
-    ↓
-Sends message to content script
-    ↓
-Content script extracts page content using @mozilla/readability
-    ↓
-Sends extracted data back to background
-    ↓
-Background broadcasts to sidebar
-    ↓
-App.tsx receives summarizePage message
-    ↓
-Clears existing messages
-    ↓
-Shows user message: "Summarize: **Page Title**\n{URL}"
-    ↓
-Calls transport.streamSummary() with page content
-    ↓
-AI response streams in with typing animation
-```
+The extension uses a triple-provider approach to ensure functionality across different browser environments:
 
-#### YouTube Video Summarization Flow (NEW)
-```
-User opens YouTube video → Right-clicks → "Summarize this video"
-    ↓
-Background service worker receives context menu click
-    ↓
-Sends message to content script
-    ↓
-Content script extracts video ID and fetches transcript
-    ↓
-Uses @danielxceron/youtube-transcript library
-    ↓
-Extracts video metadata (title, channel, URL)
-    ↓
-Sends transcript data back to background
-    ↓
-Background broadcasts to sidebar
-    ↓
-App.tsx receives summarizeYouTubeVideo message
-    ↓
-Clears existing messages
-    ↓
-Shows user message: "YouTube Video Summary: **{title}**\n{url}\nChannel: {channel}"
-    ↓
-Calls transport.streamSummary() with transcript content
-    ↓
-AI response streams in with typing animation
-```
+1.  **Primary Provider**: Chrome's Built-in AI (`@built-in-ai/core`), which uses Gemini Nano. This is the fastest and most efficient option, as it's hardware-optimized and managed by the browser.
+2.  **Secondary Fallback Provider**: WebLLM (`@built-in-ai/web-llm`), which is used when the Built-in AI is not available. It uses the WebLLM project for browser-based LLM inference.
+3.  **Tertiary Fallback Provider**: Transformers.js (`@built-in-ai/transformers-js`), which provides the broadest compatibility. It uses Hugging Face's Transformers.js library and works on nearly any modern browser with WebAssembly support.
 
-#### Text Rewriting Flow
-```
-User selects text anywhere → Right-click → "Rewrite text" → Select tone
-    ↓
-Background service worker receives context menu click
-    ↓
-Sends rewriteText message to sidebar with tone
-    ↓
-App.tsx receives rewriteText message
-    ↓
-Clears existing messages
-    ↓
-Shows user message: "Rewrite: **{Tone}**\n{originalText}"
-    ↓
-Gets tone-specific prompt from rewrite-utils
-    ↓
-Calls transport.streamSummary() with prompt
-    ↓
-AI response streams in with typing animation
-```
+### Feature Implementation
 
-### Data Flow
-```
-User Input → useChat Hook → ClientSideChatTransport 
-    ↓
-AI Provider (Built-in AI or WebLLM)
-    ↓
-Streaming Response
-    ↓
-UI Updates in Real-Time
-```
+-   **Page Summarization**: When a user right-clicks on a page and selects "Summarize this page," a content script extracts the page's content using `@mozilla/readability`. The content is then sent to the sidebar, where the AI generates a summary. The extension first attempts to use the Chrome Summarizer API (if available), then falls back to the triple-provider chat system.
+-   **YouTube Video Summarization**: For YouTube videos, the extension extracts the video's transcript using `@danielxceron/youtube-transcript`. The transcript is then summarized by the AI using the triple-provider system.
+-   **Text Rewriting**: Users can select text on any page, right-click, and choose from eight different tones to rewrite the text. The rewritten text is then displayed in the sidebar using streaming responses.
+-   **Voice Input**: Users can click the microphone button to use speech-to-text. The browser's native Speech Recognition API converts speech to text, which is then added to the message input.
+-   **Multi-Chat**: Users can create multiple chat sessions, each with its own history. Chat data is persisted to localStorage and automatically restored on page load.
 
-## File Structure
+### Transformers.js Chrome Extension Patch
 
-```
-src/
-├── App.tsx                 # Main sidebar, chat logic, all message handlers
-├── background.ts           # Service worker, all context menus, message routing
-├── content.ts              # Content script for page extraction + YouTube transcripts
-├── main.tsx                # React entry point
-├── components/
-│   └── ui/                 # shadcn/ui components
-│       ├── chat.tsx
-│       ├── chat-message.tsx
-│       ├── message-list.tsx
-│       ├── message-input.tsx
-│       ├── markdown-renderer.tsx
-│       ├── typing-indicator.tsx
-│       └── ... other components
-├── hooks/                  # Custom React hooks
-│   ├── use-auto-scroll.ts
-│   ├── use-autosize-textarea.ts
-│   ├── use-audio-recording.ts
-│   └── use-provider-context.tsx
-└── lib/                    # Utility libraries
-    ├── client-side-chat-transport.ts  # Custom transport with streaming
-    ├── summarizer-utils.ts            # Chrome Summarizer API + LLM fallback
-    ├── rewrite-utils.ts               # Rewrite tones and prompts
-    ├── youtube-utils.ts               # YouTube utilities (NEW)
-    ├── audio-utils.ts
-    └── utils.ts
-```
+A custom solution was implemented to make Transformers.js work within Chrome extensions, which have strict Content Security Policies. The solution includes:
+-   A postinstall script that patches the Transformers.js package
+-   A Vite plugin that copies ONNX runtime assets to the extension bundle
+-   Runtime configuration in the worker to load assets locally
+-   Manifest updates to expose the assets as web-accessible resources
 
-## Key Implementation Details
+## 🔧 Development Workflow
 
-### Page Summarization
-1. **Content Extraction**: Uses `@mozilla/readability` for clean article extraction
-2. **User Message**: Shows title (bold) and URL (white text for visibility)
-3. **Chat Reset**: Clears chat on each new summarization for fresh context
-4. **Streaming**: AI response streams with typing animation
-5. **Privacy**: Page content not shown in messages, only sent to AI
+1.  **Development**: Run `npm run dev` to start the Vite development server.
+2.  **Build**: Run `npm run build` to create a production build of the extension in the `dist/` directory.
+3.  **Testing**: Load the `dist/` directory as an unpacked extension in Chrome's developer mode to test its functionality.
 
-### YouTube Video Summarization (NEW)
-1. **Transcript Extraction**: Uses `@danielxceron/youtube-transcript` with dual-fallback
-   - Primary: HTML scraping from page
-   - Fallback: YouTube InnerTube API
-2. **Video Metadata**: Extracts title, channel name, video ID, URL
-3. **URL Support**: youtube.com/watch, youtu.be, shorts, embeds all supported
-4. **User Message**: Shows "YouTube Video Summary: **{title}**\n{url}\nChannel: {channel}"
-5. **Transcript Truncation**: Limits to 15,000 characters for summarization
-6. **Error Handling**: Graceful handling for age-gated or transcriptless videos
+## 🎨 Code Style & Conventions
 
-### Text Rewriting
-1. **Tone Selection**: 8 different tones (Concise, Professional, Casual, Formal, Engaging, Simplified, Technical, Creative)
-2. **Tone-Specific Prompts**: Each tone has unique, optimized prompt
-3. **User Message**: Shows "Rewrite: **{Tone}**\n{originalText}"
-4. **Chain Rewrites**: Users can rewrite the rewritten text again
-5. **Streaming**: Uses same transport as summarization
+-   **Components**: Functional components with hooks are preferred.
+-   **Styling**: All styling is done using Tailwind CSS, with conditional classes managed by the `cn()` utility.
+-   **File Naming**:
+    -   Components: `kebab-case.tsx`
+    -   Hooks: `use-kebab-case.ts`
+    -   Utilities: `kebab-case.ts`
+-   **Commits**: The Conventional Commits format is used for commit messages (e.g., `feat(youtube): add video summarization`).
 
-### Transport Layer Enhancements
-- `sendMessages()` - Standard chat message handling
-- `summarizeText()` - Direct text summary (returns full text)
-- `streamSummary()` - Streaming summary with callback (for typing animation)
+## 🔒 Privacy & Security
 
-## Configuration
-
-### TypeScript
-- `tsconfig.json` - Main TypeScript config
-- `tsconfig.app.json` - React app config with strict mode enabled
-- `tsconfig.node.json` - Node.js scripts config
-
-### Vite Build
-- Input files: `index.html`, `src/background.ts`, `src/content.ts`
-- Output: `dist/` with separate `background.js` and `content.js`
-- CSS pipeline: Tailwind + PostCSS
-- 2673 modules compiled
-
-### Chrome Manifest
-- Version: 3 (Manifest V3)
-- Permissions: `storage`, `sidePanel`, `contextMenus`, `activeTab`, `scripting`
-- Content scripts: Run on `<all_urls>` + YouTube domains at `document_idle`
-- Host permissions: YouTube domains
-- CSP: Allows WASM (`wasm-unsafe-eval`)
-
-## Development Workflow
-
-1. **Development**:
-   ```bash
-   npm run dev    # Vite dev server
-   ```
-
-2. **Build**:
-   ```bash
-   npm run build  # Production build (9.61s)
-   ```
-
-3. **Preview**:
-   ```bash
-   npm run preview  # Preview built app
-   ```
-
-4. **Linting**:
-   ```bash
-   npm run lint   # ESLint check
-   ```
-
-5. **Testing in Chrome**:
-   - Run `npm run build`
-   - Go to `chrome://extensions/`
-   - Enable "Developer mode"
-   - Click "Load unpacked"
-   - Select `dist/` folder
-   - To reload: Click reload icon on extension card
-
-## Browser Requirements
-
-### Built-in AI Support
-- Chrome 128+ or Edge Dev 138.0.3309.2+
-- Enable flag: `chrome://flags/#prompt-api-for-gemini-nano` (Chrome)
-- Enable flag: `edge://flags/#prompt-api-for-phi-mini` (Edge)
-
-### WebLLM Fallback
-- Any browser with WebGPU or WASM support
-- Works offline with manual model management
-
-### YouTube Transcripts
-- Works on any YouTube video with captions/transcripts available
-- Supports multiple YouTube URL formats
-- Fallback extraction if primary method fails
-
-## Code Style & Conventions
-
-### Components
-- Functional components with hooks
-- Use function declarations, not arrow functions for top-level components
-- Always use explicit types for props and parameters
-
-### Styling
-- Tailwind CSS for all styles
-- `cn()` utility for conditional classes
-- Dark mode supported via CSS variables
-
-### File Naming
-- Components: `kebab-case.tsx`
-- Hooks: `use-kebab-case.ts`
-- Utilities: `kebab-case.ts`
-
-### Commits
-- Conventional commit format: `feat(feature): description`
-- Examples: `feat(youtube): add video summarization`, `fix(ui): fix link colors`
-
-## Current Status
-
-### ✅ Completed Features
-1. **Foundation & Setup** - Project initialized with all dependencies
-2. **Chat Interface** - Full UI with message display and input
-3. **AI Integration** - Dual-provider system with streaming
-4. **Page Summarization** - Right-click → summarize flow complete
-5. **Content Extraction** - Using @mozilla/readability
-6. **Text Rewriting** - 8 tones with streaming
-7. **YouTube Video Summarization** - Transcript extraction + AI summary (NEW)
-8. **Streaming Responses** - Character-by-character with animation
-9. **Link Styling** - URLs visible in white/bright colors
-10. **Chat Management** - Auto-clear on new summarization/rewrite/video summary
-
-### 📦 Build Status
-- ✅ Vite build configured for multiple entry points
-- ✅ CSS and JS bundled correctly
-- ✅ Content script and background script separate
-- ✅ YouTube-transcript library integrated
-- ✅ Total bundle size: ~6.5MB (includes AI models)
-- ✅ Build time: 9.61 seconds
-- ✅ Zero TypeScript errors
-
-### 🎯 Next Steps (Future)
-- Voice input (speech-to-text with Whisper)
-- Image generation capabilities
-- Chat history persistence
-- Model cache management UI
-- Settings panel for AI parameters
-- YouTube playlist summarization
-- Video chapter extraction
-- Export summaries to markdown/PDF
+-   **100% Local Processing**: All AI inference runs in the browser. No data is sent to external servers.
+-   **No API Keys Required**: The extension does not require any API keys or accounts.
+-   **Chrome Extension Sandboxing**: The extension runs in a sandboxed environment enforced by Chrome.
+-   **Transformers.js CSP Patch**: A custom solution ensures the extension complies with Chrome's Content Security Policy while still being able to load AI models.
