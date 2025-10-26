@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
-import { ArrowUp, Info, Loader2, Mic, Square, Image as ImageIcon, X } from "lucide-react"
+import { ArrowUp, Info, Loader2, Mic, Square, Image as ImageIcon, X, Camera } from "lucide-react"
 import { omit } from "remeda"
 
 import { cn } from "@/lib/utils"
@@ -27,6 +27,8 @@ interface MessageInputBaseProps
   availableProviders?: ("built-in-ai" | "web-llm" | "transformers-js")[]
   attachedImage?: { file: File; preview: string } | null
   onAttachImage?: (image: { file: File; preview: string } | null) => void
+  onScreenCapture?: () => void
+  isCapturingScreen?: boolean
 }
 
 interface MessageInputWithoutAttachmentProps extends MessageInputBaseProps {
@@ -49,6 +51,8 @@ export function MessageInput({
   availableProviders,
   attachedImage,
   onAttachImage,
+  onScreenCapture,
+  isCapturingScreen = false,
   ...props
 }: MessageInputProps) {
   const [showInterruptPrompt, setShowInterruptPrompt] = useState(false)
@@ -246,6 +250,18 @@ export function MessageInput({
                   title="Attach image (Built-in AI only)"
                 >
                   <ImageIcon className="h-4 w-4" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-8 w-8"
+                  aria-label="Capture screen"
+                  size="icon"
+                  onClick={onScreenCapture}
+                  disabled={isCapturingScreen || isGenerating}
+                  title="Capture current screen (Built-in AI only)"
+                >
+                  <Camera className="h-4 w-4" />
                 </Button>
               </>
             )}

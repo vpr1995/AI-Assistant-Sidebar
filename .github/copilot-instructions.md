@@ -19,7 +19,7 @@ The core innovation is `ClientSideChatTransport` implementing Vercel AI SDK's `C
 async detectAvailableProvider(): 'built-in-ai' | 'web-llm' | 'transformers-js'
   ├─ doesBrowserSupportBuiltInAI() → builtInAI().availability()
   ├─ Falls back to webLLM('Llama-3.2-1B-Instruct-q4f16_1-MLC')
-  └─ Final fallback: transformersJS('SmolLM2-360M-Instruct')
+  └─ Final fallback: transformersJS('Llama-3.2-1B')
 
 // sendMessages() handles streaming with download progress:
 sendMessages() → createUIMessageStream() → writer.merge(result.toUIMessageStream())
@@ -54,6 +54,24 @@ Extracts imageAttachment from request body → Converts to multimodal message fo
 - Use `writer.merge()` to combine download progress and text streams
 - Only enable image upload when `activeProvider === 'built-in-ai'`
 - Use `streamSummary()` for page/YouTube/rewrite features
+
+### 1b. Screen Capture Feature (`src/lib/screen-capture-utils.ts`)
+
+Privacy-first screen analysis using Chrome Desktop Capture API with local AI inference. Complete implementation with tab/window/screen picker, frame extraction, and multimodal integration.
+
+```typescript
+// Desktop Capture API integration
+async captureScreenWithPicker(options): Promise<CaptureResult>
+  ├─ chrome.desktopCapture.chooseDesktopMedia(['tab', 'window', 'screen']) → User picker
+  ├─ navigator.mediaDevices.getUserMedia(constraints) → MediaStream
+  │  └─ CRITICAL: chromeMediaSource MUST always be 'desktop' (even for tab captures)
+  ├─ Canvas API to extract frame → Base64 PNG image
+  └─ Returns: { imageData, width, height, mimeType }
+
+// Complete User Flow:
+Capture → Preview Dialog → Confirm → Attach as Image → Stream to Built-in AI
+// All processing local - zero cloud uploads
+```
 
 ### 2. Chrome Extension Message Flow & Multi-Feature Architecture
 
@@ -259,10 +277,11 @@ Show loading state until `isClient` true and `activeProvider` detected.
 - **YouTube summarization**: `src/lib/youtube-utils.ts` → Transcript extraction and formatting
 - **Text rewriting**: `src/lib/rewrite-utils.ts` → 8 tone presets with specific prompts
 - **Voice input**: `src/hooks/use-voice-speech-recognition.ts` → Web Speech API wrapper
+- **Screen capture**: `src/lib/screen-capture-utils.ts` → Desktop Capture API + frame extraction → `src/hooks/use-screen-capture.ts` hook → `src/App.tsx` integration
 - **Chat persistence**: `src/lib/chat-storage.ts` → CRUD operations with chrome.storage.local
 - **Multimodal input**: `src/lib/image-utils.ts` → Image to base64 conversion
 - **Build config**: `vite.config.ts` → `rollupOptions.input` for multi-entry builds
-- **Extension manifest**: `public/manifest.json` → permissions, CSP, content scripts
+- **Extension manifest**: `public/manifest.json` → permissions (including `desktopCapture`), CSP, content scripts
 
 ---
 

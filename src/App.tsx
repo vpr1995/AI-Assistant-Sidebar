@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { useChat } from '@ai-sdk/react'
+import { toast } from 'sonner'
 import { ClientSideChatTransport } from '@/lib/client-side-chat-transport'
 import { Chat } from '@/components/ui/chat'
 import { DownloadProgressDialog } from '@/components/ui/download-progress-dialog'
@@ -7,6 +8,7 @@ import { ChatSidebar } from '@/components/ui/chat-sidebar'
 import { NewChatDialog } from '@/components/ui/new-chat-dialog'
 import { AppHeader } from '@/components/ui/app-header'
 import { ProviderStatusBanners } from '@/components/ui/provider-status-banners'
+import { ScreenCapturePreviewDialog } from '@/components/ui/screen-capture-preview-dialog'
 import type { Message } from '@/components/ui/chat-message'
 import { useChats } from '@/hooks/use-chats'
 import { useAIProvider } from '@/hooks/use-ai-provider'
@@ -14,6 +16,7 @@ import { useChatTitleEditor } from '@/hooks/use-chat-title-editor'
 import { useModelDownloadProgress } from '@/hooks/use-model-download-progress'
 import { useChatPersistence } from '@/hooks/use-chat-persistence'
 import { useChromeMessageListener } from '@/hooks/use-chrome-message-listener'
+import { useScreenCapture } from '@/hooks/use-screen-capture'
 import type { Attachment, UIMessage } from '@/types/chat'
 import './App.css'
 import { isTextPart } from '@/lib/utils'
@@ -58,6 +61,9 @@ function App() {
 
   // Track if we've already auto-created a chat for current session
   const autoCreatedRef = useRef(false)
+
+  // Screen capture state
+  const screenCapture = useScreenCapture()
 
   // ====================
   // HOOKS & TRANSPORT
@@ -209,6 +215,41 @@ function App() {
     setInput(e.target.value)
   }, [])
 
+  // Handle screen capture confirmation - convert to image and set as attachment
+  const handleScreenCaptureConfirm = useCallback(async () => {
+    console.log('[App] Screen capture confirmed');
+    if (!screenCapture.capturedImage) return
+
+    try {
+      // Convert base64 image to File object
+      const base64Data = screenCapture.capturedImage.imageData.split(',')[1] || ''
+      const byteCharacters = atob(base64Data)
+      const byteNumbers = new Array(byteCharacters.length)
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i)
+      }
+      const byteArray = new Uint8Array(byteNumbers)
+      const blob = new Blob([byteArray], { type: 'image/png' })
+
+      const file = new File([blob], `screenshot-${Date.now()}.png`, { type: 'image/png' })
+
+      // Set as attached image
+      console.log('[App] Setting attached image');
+      setAttachedImage({
+        file,
+        preview: screenCapture.capturedImage.imageData
+      })
+
+      // Close the preview dialog
+      screenCapture.closeCaptureFlow()
+      toast.success('Screenshot attached and ready to analyze');
+    } catch (error) {
+      console.error('[App] Error processing captured image:', error)
+      toast.error('Failed to process screenshot')
+      screenCapture.closeCaptureFlow()
+    }
+  }, [screenCapture])
+
   const append = useCallback((message: { role: 'user'; content: string }) => {
     sendMessage({ text: message.content })
     setInput('')
@@ -326,6 +367,8 @@ function App() {
           availableProviders={availableProviders}
           attachedImage={attachedImage}
           onAttachImage={setAttachedImage}
+          onScreenCapture={screenCapture.capture}
+          isCapturingScreen={screenCapture.isCapturing}
           suggestions={[
             'What is the weather in San Francisco?',
             'Explain step-by-step how to solve this math problem: If x² + 6x + 9 = 25, what is x?',
@@ -369,6 +412,15 @@ function App() {
             console.error('[App] Error creating new chat:', error)
           }
         }}
+      />
+
+      {/* Screen Capture Preview Dialog */}
+      <ScreenCapturePreviewDialog
+        isOpen={screenCapture.isPreviewOpen}
+        capturedImage={screenCapture.capturedImage}
+        onConfirm={handleScreenCaptureConfirm}
+        onRetake={screenCapture.capture}
+        onCancel={screenCapture.closeCaptureFlow}
       />
     </div>
   )

@@ -42,6 +42,8 @@ interface ChatPropsBase {
   availableProviders?: ("built-in-ai" | "web-llm" | "transformers-js")[]
   attachedImage?: { file: File; preview: string } | null
   onAttachImage?: (image: { file: File; preview: string } | null) => void
+  onScreenCapture?: () => void
+  isCapturingScreen?: boolean
 }
 
 interface ChatPropsWithoutSuggestions extends ChatPropsBase {
@@ -76,6 +78,8 @@ export function Chat({
   availableProviders,
   attachedImage,
   onAttachImage,
+  onScreenCapture,
+  isCapturingScreen = false,
 }: ChatProps) {
   const lastMessage = messages[messages.length - 1]
   const isEmpty = messages.length === 0
@@ -257,6 +261,8 @@ export function Chat({
           availableProviders={availableProviders}
           attachedImage={attachedImage}
           onAttachImage={onAttachImage}
+          onScreenCapture={onScreenCapture}
+          isCapturingScreen={isCapturingScreen}
         />
       </ChatForm>
     </ChatContainer>

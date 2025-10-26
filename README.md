@@ -14,6 +14,7 @@
 - **🖼️ Multimodal Input**: Upload images for vision-based queries (Built-in AI only)
 - **🎤 Voice Input**: Speech-to-text using browser's native Speech Recognition API
 - **📋 Copy Messages**: One-click copy for any AI response
+- **🖥️ Screen Capture**: Capture your tab, a window, or the entire desktop and attach a screenshot directly to chat (Built-in AI only)
 
 **Summarization & Content Processing**
 - **📄 Page Summarization**: Right-click any web page → instant AI summary
@@ -146,6 +147,18 @@ Then build and reload in `chrome://extensions/` to test extension-specific APIs.
    - **Creative** — Imaginative rephrasing
 5. The rewritten text appears in the sidebar with streaming
 
+### Screen Capture (Desktop Capture API)
+
+1. Click the **camera** icon in the message input to open the Chrome screen picker.
+2. Choose one of: **Tab**, **Window**, or **Entire screen**, then click **Share**.
+3. A preview dialog appears showing the captured screenshot (dimensions and preview).
+4. Click **Send to AI** to attach the screenshot to the active chat and send it to the Built-in AI provider for local analysis.
+
+Notes:
+- Screen capture uses the Chrome Desktop Capture API (`chrome.desktopCapture.chooseDesktopMedia`) and requests the resulting stream via `navigator.mediaDevices.getUserMedia`
+- This feature only works with the **Built-in AI** provider (multimodal). The UI disables the camera button for other providers.
+- Captured images are not persisted to storage — they are used transiently for the current message only (privacy-first).
+
 ### Voice Input
 
 1. Click the **microphone button** 🎤 in the message input
@@ -211,6 +224,7 @@ src/
   - `youtube-video-summarization-feature` — YouTube transcript extraction and summarization
   - `rewrite-feature-complete` — Text rewriting with 8 tone presets
   - `voice-input-feature` — Speech recognition implementation
+  - `screen-capture-feature-implementation` — Desktop capture, frame extraction, and multimodal integration
 
 
 **Where to look for primary logic:**
