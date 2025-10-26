@@ -23,6 +23,8 @@ type SummarizerAvailability = 'readily' | 'after-download' | 'downloadable' | 'u
 interface Summarizer {
   summarize(text: string, options?: { context?: string }): Promise<string>
   summarizeStreaming(text: string, options?: { context?: string }): AsyncIterable<string>
+  measureInputUsage(text: string): Promise<number>
+  inputQuota: number
 }
 
 interface SummarizerStatic {

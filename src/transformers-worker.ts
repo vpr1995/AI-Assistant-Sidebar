@@ -13,6 +13,5 @@ if (env?.backends?.onnx?.wasm) {
 }
 
 self.onmessage = (msg: MessageEvent) => {
-  
     transformersJSHandler.onmessage(msg);
 };

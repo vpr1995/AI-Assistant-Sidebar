@@ -73,6 +73,10 @@ export async function streamChromeSummary(
 
     console.log('[Summarizer] Summarizer created, starting stream...')
 
+    const inputUsage = await summarizer.measureInputUsage(text);
+    const totalInputQuota = summarizer.inputQuota;
+    console.log('[Summarizer] Input usage:', inputUsage, 'of', totalInputQuota);
+    
     // Stream the summary
     const stream = summarizer.summarizeStreaming(text)
 

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Settings, Sun, Moon, Monitor, Info, ToggleLeft, ToggleRight } from 'lucide-react'
+import { Settings, Sun, Moon, Monitor, Info } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useThemeContext } from '@/hooks/use-theme-context'
 import { cn } from '@/lib/utils'

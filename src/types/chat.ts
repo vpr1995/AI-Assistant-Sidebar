@@ -2,6 +2,10 @@
  * Type definitions for chat persistence
  */
 
+import { BuiltInAIUIMessage } from "@built-in-ai/core"
+import { TransformersUIMessage } from "@built-in-ai/transformers-js"
+import { WebLLMUIMessage } from "@built-in-ai/web-llm"
+
 export interface ChatMessage {
   id: string
   role: 'user' | 'assistant'
@@ -24,3 +28,16 @@ export interface ChatListItem {
   preview?: string
   updatedAt: number
 }
+
+export interface ModelDownloadProgress {
+  status: "downloading" | "extracting" | "complete"
+  progress: number
+  message: string
+}
+
+export interface Attachment { url: string; name: string; contentType: string }
+
+// Unified message type supporting all three providers
+export type UIMessage = BuiltInAIUIMessage | WebLLMUIMessage | TransformersUIMessage
+
+export type AIProvider = 'built-in-ai' | 'web-llm' | 'transformers-js' | null
