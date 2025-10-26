@@ -22,6 +22,7 @@ import { ChatSidebar } from '@/components/ui/chat-sidebar'
 import { NewChatDialog } from '@/components/ui/new-chat-dialog'
 import type { Message } from '@/components/ui/chat-message'
 import { summarizeWithFallback } from '@/lib/summarizer-utils'
+import { getSummarizerPreference, type SummarizerPreference } from '@/lib/settings-storage'
 import { getRewritePrompt, formatRewriteUserMessage, type RewriteTone } from '@/lib/rewrite-utils'
 import { useChats } from '@/hooks/use-chats'
 import './App.css'
@@ -432,6 +433,7 @@ Provide a clear, well-structured summary focusing on the main points and key inf
           setMessages((prevMessages) => [...prevMessages, aiMessage]);
           
           // Use Chrome Summarizer API with fallback to LLM transport
+          const userPreference = await getSummarizerPreference()
           const summarizerProvider = await summarizeWithFallback(
             summarizationPrompt,
             (chunk: string) => {
@@ -464,8 +466,9 @@ Provide a clear, well-structured summary focusing on the main points and key inf
             },
             // Fallback function using the transport
             async (text: string, onChunk: (chunk: string) => void) => {
-              await transport.streamSummary(text, onChunk);
-            }
+              await transport.streamSummary(text, onChunk)
+            },
+            userPreference
           );
           
           console.log('[App] Summarization complete with provider:', summarizerProvider);

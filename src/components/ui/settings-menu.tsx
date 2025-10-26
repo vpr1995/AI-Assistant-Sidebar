@@ -1,8 +1,10 @@
 import { useState, useRef, useEffect } from 'react'
-import { Settings, Sun, Moon, Monitor } from 'lucide-react'
+import { Settings, Sun, Moon, Monitor, Info, ToggleLeft, ToggleRight } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useThemeContext } from '@/hooks/use-theme-context'
 import { cn } from '@/lib/utils'
+import { getSummarizerPreference, setSummarizerPreference, type SummarizerPreference } from '@/lib/settings-storage'
+import { checkChromeSummarizerAvailability } from '@/lib/summarizer-utils'
 
 type Theme = 'light' | 'dark' | 'system'
 
@@ -14,6 +16,9 @@ interface MenuPosition {
 export function SettingsMenu() {
   const [isOpen, setIsOpen] = useState(false)
   const [menuPosition, setMenuPosition] = useState<MenuPosition>({ top: 0, right: 0 })
+  const [summarizerPreference, setSummarizerPreferenceState] = useState<SummarizerPreference>('built-in')
+  const [isBuiltInAvailable, setIsBuiltInAvailable] = useState(false)
+  const [showInfoTooltip, setShowInfoTooltip] = useState(false)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const { theme, setTheme } = useThemeContext()
 
@@ -27,6 +32,32 @@ export function SettingsMenu() {
       })
     }
   }, [isOpen])
+
+  // Load summarizer preference and check built-in availability on mount
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const preference = await getSummarizerPreference()
+        setSummarizerPreferenceState(preference)
+        
+        const available = await checkChromeSummarizerAvailability()
+        setIsBuiltInAvailable(available)
+      } catch (error) {
+        console.error('[Settings] Error loading summarizer settings:', error)
+      }
+    }
+    loadSettings()
+  }, [])
+
+  const handleSummarizerToggle = async () => {
+    const newPreference: SummarizerPreference = summarizerPreference === 'built-in' ? 'fallback' : 'built-in'
+    setSummarizerPreferenceState(newPreference)
+    try {
+      await setSummarizerPreference(newPreference)
+    } catch (error) {
+      console.error('[Settings] Error saving summarizer preference:', error)
+    }
+  }
 
   const themes: Array<{ value: Theme; label: string; icon: React.ReactNode }> = [
     { value: 'light', label: 'Light', icon: <Sun className="h-4 w-4" /> },
@@ -170,6 +201,83 @@ export function SettingsMenu() {
                     ))}
                   </div>
                 </div>
+              </div>
+
+              {/* Summarizer Section */}
+              <div>
+                {/* Toggle Row */}
+                <div className="flex items-center justify-between px-2 py-3 rounded-lg bg-accent/5 hover:bg-accent/10 transition-colors">
+                  <div className="flex flex-col">
+                    <span className="text-sm font-medium">
+                      {summarizerPreference === 'built-in' ? 'Built-in Summarizer' : 'AI Fallback'}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {summarizerPreference === 'built-in'
+                        ? 'Faster, no model download'
+                        : 'Works everywhere, uses AI model'
+                      }
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleSummarizerToggle}
+                      disabled={!isBuiltInAvailable}
+                      className={cn(
+                        'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
+                        'focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
+                        'dark:focus:ring-offset-background',
+                        summarizerPreference === 'built-in' && isBuiltInAvailable
+                          ? 'bg-primary'
+                          : 'bg-muted',
+                        !isBuiltInAvailable && 'opacity-50 cursor-not-allowed'
+                      )}
+                      title={!isBuiltInAvailable ? 'Built-in summarizer not available' : undefined}
+                    >
+                      <span
+                        className={cn(
+                          'inline-block h-4 w-4 transform rounded-full bg-background transition-transform',
+                          summarizerPreference === 'built-in' ? 'translate-x-6' : 'translate-x-1'
+                        )}
+                      />
+                    </button>
+                    {/* Info Icon */}
+                    <button
+                      onClick={() => setShowInfoTooltip(!showInfoTooltip)}
+                      className="p-1 rounded-md hover:bg-accent/50 transition-colors"
+                      title="Summarizer information"
+                    >
+                      <Info className="h-4 w-4 text-muted-foreground" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Info Tooltip */}
+                <AnimatePresence>
+                  {showInfoTooltip && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="px-2 pb-3"
+                    >
+                      <div className="rounded-lg bg-accent/5 p-3 text-xs text-muted-foreground">
+                        <div className="space-y-2">
+                          <div>
+                            <strong>Built-in Summarizer:</strong> Uses Chrome's native AI for faster, offline summarization with no model downloads.
+                          </div>
+                          <div>
+                            <strong>AI Fallback:</strong> Uses local AI models that work everywhere but require initial download and more processing.
+                          </div>
+                          {!isBuiltInAvailable && (
+                            <div className="text-amber-600 dark:text-amber-400">
+                              <strong>Note:</strong> Built-in summarizer is not available in your browser. Enable it in Chrome flags or use AI fallback.
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             </div>
           </motion.div>
