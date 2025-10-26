@@ -47,6 +47,7 @@ interface ProviderConfig {
   downloadMessage: string
   errorPrefix: string
   deviceType?: 'webgpu'
+  isVisionModel?: boolean
 }
 
 /**
@@ -71,6 +72,7 @@ const PROVIDER_CONFIGS: Record<'built-in-ai' | 'web-llm' | 'transformers-js', Pr
     downloadMessage: 'Downloading TransformersJS model...',
     errorPrefix: 'Error with TransformersJS',
     deviceType: 'webgpu',
+    isVisionModel: false,
   },
 }
 
@@ -505,6 +507,7 @@ export class ClientSideChatTransport implements ChatTransport<UIMessage> {
           
           model = transformersJS(config.modelId, {
             device: config.deviceType!,
+            isVisionModel: config.isVisionModel || false,
             worker: new Worker(new URL('../transformers-worker.ts', import.meta.url), {
               type: 'module',
             }),

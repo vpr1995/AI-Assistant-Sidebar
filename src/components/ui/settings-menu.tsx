@@ -213,7 +213,7 @@ export function SettingsMenu() {
                     </span>
                     <span className="text-xs text-muted-foreground">
                       {summarizerPreference === 'built-in'
-                        ? 'Faster, no model download'
+                        ? 'Faster, offline summarization'
                         : 'Works everywhere, uses AI model'
                       }
                     </span>
@@ -263,7 +263,7 @@ export function SettingsMenu() {
                       <div className="rounded-lg bg-accent/5 p-3 text-xs text-muted-foreground">
                         <div className="space-y-2">
                           <div>
-                            <strong>Built-in Summarizer:</strong> Uses Chrome's native AI for faster, offline summarization with no model downloads.
+                            <strong>Built-in Summarizer:</strong> Uses Chrome's native AI for faster, offline summarization.
                           </div>
                           <div>
                             <strong>AI Fallback:</strong> Uses local AI models that work everywhere but require initial download and more processing.
