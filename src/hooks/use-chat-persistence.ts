@@ -58,15 +58,16 @@ export function useChatPersistence(config: UseChatPersistenceConfig): UseChatPer
     }
 
     try {
-      // Convert messages to ChatMessage format - extract content from parts
+      // Convert messages to ChatMessage format - preserve parts and extract content text
       const chatMessages = messagesToSave.map((msg) => {
         const content = msg.parts?.filter((p) => p.type === 'text').map((p) => (p as { type: 'text'; text: string }).text).join('') || ''
-        console.log('[useChatPersistence] Saving message:', msg.id, 'role:', msg.role, 'content length:', content.length)
+        console.log('[useChatPersistence] Saving message:', msg.id, 'role:', msg.role, 'content length:', content.length, 'parts count:', msg.parts?.length)
         return {
           id: msg.id,
           role: msg.role as 'user' | 'assistant',
           content: content,
           timestamp: Date.now(),
+          parts: msg.parts, // Store full parts array to preserve tool invocations
         }
       })
 
@@ -101,12 +102,13 @@ export function useChatPersistence(config: UseChatPersistenceConfig): UseChatPer
 
       (async () => {
         try {
-          // Convert rawMessages to ChatMessage format
+          // Convert rawMessages to ChatMessage format - preserve parts and extract content text
           const chatMessages = rawMessages.map((msg) => ({
             id: msg.id,
             role: msg.role as 'user' | 'assistant',
             content: msg.parts?.filter((p) => p.type === 'text').map((p) => (p as { type: 'text'; text: string }).text).join('') || '',
             timestamp: Date.now(),
+            parts: msg.parts, // Store full parts array to preserve tool invocations
           }))
 
           await updateCurrentChatMessages(chatMessages)
@@ -140,11 +142,20 @@ export function useChatPersistence(config: UseChatPersistenceConfig): UseChatPer
       // Always clear first to ensure clean state when switching chats
       if (currentChat.messages.length > 0) {
         // Convert stored ChatMessage to UIMessage format
-        const convertedMessages = currentChat.messages.map((msg) => ({
-          id: msg.id,
-          role: msg.role as 'user' | 'assistant',
-          parts: [{ type: 'text' as const, text: msg.content }],
-        })) as UIMessage[]
+        const convertedMessages = currentChat.messages.map((msg) => {
+          // Restore parts if available, otherwise fallback to text part
+          const parts = msg.parts && Array.isArray(msg.parts) && msg.parts.length > 0
+            ? msg.parts
+            : [{ type: 'text' as const, text: msg.content }]
+          
+          console.log('[useChatPersistence] Loading message:', msg.id, 'parts:', parts.length)
+          
+          return {
+            id: msg.id,
+            role: msg.role as 'user' | 'assistant',
+            parts: parts as unknown[],
+          }
+        }) as UIMessage[]
 
         console.log('[useChatPersistence] Setting messages:', convertedMessages.length)
         setMessages(convertedMessages)

@@ -12,7 +12,9 @@ import {
   ChatRequestOptions,
   createUIMessageStream,
   type ModelMessage,
+  stepCountIs,
 } from 'ai'
+import { buildEnabledTools } from '@/lib/tools'
 import {
   builtInAI,
   doesBrowserSupportBuiltInAI,
@@ -78,13 +80,13 @@ const PROVIDER_CONFIGS: Record<'built-in-ai' | 'web-llm' | 'transformers-js', Pr
 
 async function detectAvailableProvider(): Promise<'built-in-ai' | 'web-llm' | 'transformers-js'> {
   console.log('[AI Provider Detection] Starting detection...')
-  
+
   if (doesBrowserSupportBuiltInAI()) {
     console.log('[AI Provider Detection] Browser supports Built-in AI')
     const model = builtInAI()
     const availability = await model.availability()
     console.log('[AI Provider Detection] Built-in AI availability:', availability)
-    
+
     if (availability !== 'unavailable') {
       console.log('[AI Provider Detection] Selected: Built-in AI')
       return 'built-in-ai'
@@ -99,7 +101,7 @@ async function detectAvailableProvider(): Promise<'built-in-ai' | 'web-llm' | 't
     console.log('[AI Provider Detection] Selected: WebLLM')
     return 'web-llm'
   }
-  
+
   console.log('[AI Provider Detection] Browser does NOT support WebLLM, checking TransformersJS...')
 
   if (doesBrowserSupportTransformersJS()) {
@@ -130,6 +132,7 @@ export class ClientSideChatTransport implements ChatTransport<UIMessage> {
   private modelInitializing: Map<'web-llm' | 'transformers-js', Promise<void>> = new Map()
   private providerChangeCallback: ((provider: 'built-in-ai' | 'web-llm' | 'transformers-js') => void) | null = null
   private progressCallback: ((progress: { status: string; progress: number; message: string }) => void) | null = null
+  private selectedTools: Set<string> = new Set(['getWeather']) // Tools selected by user
   private static hasLoggedInitialization = false
 
   constructor(preferredProvider: 'built-in-ai' | 'web-llm' | 'transformers-js' | 'auto' = 'auto') {
@@ -139,6 +142,29 @@ export class ClientSideChatTransport implements ChatTransport<UIMessage> {
       console.log('[ClientSideChatTransport] Initialized with preferred provider:', preferredProvider)
       ClientSideChatTransport.hasLoggedInitialization = true
     }
+  }
+
+  /**
+   * Set which tools should be enabled
+   */
+  setSelectedTools(toolIds: string[]): void {
+    this.selectedTools = new Set(toolIds)
+    console.log('[ClientSideChatTransport] Selected tools updated:', Array.from(this.selectedTools))
+  }
+
+  /**
+   * Check if a tool is enabled
+   */
+  isToolEnabled(toolId: string): boolean {
+    return this.selectedTools.has(toolId)
+  }
+
+  /**
+   * Get enabled tools from registry based on selected tool IDs
+   */
+  private getEnabledTools() {
+    const enabledToolIds = Array.from(this.selectedTools)
+    return buildEnabledTools(enabledToolIds)
   }
 
   async sendMessages(
@@ -166,25 +192,25 @@ export class ClientSideChatTransport implements ChatTransport<UIMessage> {
     // Convert UI messages to model messages
     const prompt: ModelMessage[] = convertToModelMessages(messages) ?? []
     console.log('[ClientSideChatTransport] Prompt messages:', prompt.length)
-    
+
     // If we have an image attachment for built-in-ai, add it to the last message
-    const imageAttachment = (body as Record<string, unknown> | undefined)?.imageAttachment as 
+    const imageAttachment = (body as Record<string, unknown> | undefined)?.imageAttachment as
       { mediaType: string; data: string } | undefined
     if (imageAttachment && this.provider === 'built-in-ai' && prompt.length > 0) {
       const lastMessage = prompt[prompt.length - 1]
-      
+
       if (lastMessage && lastMessage.role === 'user') {
         // Extract user text from the converted message
         const userText = typeof lastMessage.content === 'string' ? lastMessage.content : ''
-        
+
         console.log('[ClientSideChatTransport] Adding image to message:', imageAttachment.mediaType)
-        
+
         // Build multimodal content: text + file
         lastMessage.content = [
           { type: 'text', text: userText },
           { type: 'file', mediaType: imageAttachment.mediaType, data: imageAttachment.data }
         ] as Array<{ type: 'text'; text: string } | { type: 'file'; mediaType: string; data: string }>
-        
+
         console.log('[ClientSideChatTransport] ✅ Multimodal message:', userText, imageAttachment.mediaType)
       }
     }
@@ -258,7 +284,7 @@ export class ClientSideChatTransport implements ChatTransport<UIMessage> {
       console.log('[ClientSideChatTransport] Preferred provider unchanged:', provider)
       return
     }
-    
+
     console.log('[ClientSideChatTransport] Switching preferred provider from', this.preferredProvider, 'to', provider)
     this.preferredProvider = provider
     // Reset the detected provider to force re-detection on next message
@@ -303,10 +329,10 @@ export class ClientSideChatTransport implements ChatTransport<UIMessage> {
     abortSignal: AbortSignal | undefined
   ): Promise<ReadableStream<UIMessageChunk>> {
     const config = PROVIDER_CONFIGS[provider]
-    
+
     // Get the model
     let model: ReturnType<typeof builtInAI> | ReturnType<typeof webLLM> | ReturnType<typeof transformersJS>
-    
+
     if (provider === 'built-in-ai') {
       model = builtInAI()
     } else {
@@ -316,13 +342,15 @@ export class ClientSideChatTransport implements ChatTransport<UIMessage> {
     // Check availability and handle download
     const availability = await model.availability()
     console.log(`${config.logPrefix} Model availability:`, availability)
-    
+
     if (availability === 'available') {
       console.log(`${config.logPrefix} Model is already available, streaming immediately`)
       const result = streamText({
         model,
         messages: prompt,
         abortSignal: abortSignal,
+        tools: provider === 'built-in-ai' ? this.getEnabledTools() : undefined,
+        stopWhen: stepCountIs(5),
       })
       return result.toUIMessageStream()
     }
@@ -413,6 +441,8 @@ export class ClientSideChatTransport implements ChatTransport<UIMessage> {
             model,
             messages: prompt as ModelMessage[],
             abortSignal: abortSignal,
+            tools: provider === 'built-in-ai' ? this.getEnabledTools() : undefined,
+            stopWhen: stepCountIs(5),
             onChunk(event) {
               // Clear progress message on first text chunk
               if (event.chunk.type === 'text-delta' && downloadProgressId) {
@@ -429,9 +459,8 @@ export class ClientSideChatTransport implements ChatTransport<UIMessage> {
 
           writer.merge(result.toUIMessageStream({ sendStart: false }))
         } catch (error) {
-          const errorMessage = `${config.errorPrefix}: ${
-            error instanceof Error ? error.message : 'Unknown error'
-          }`
+          const errorMessage = `${config.errorPrefix}: ${error instanceof Error ? error.message : 'Unknown error'
+            }`
           console.error(`${config.logPrefix}`, errorMessage, error)
           writer.write({
             type: 'data-notification',
@@ -473,7 +502,7 @@ export class ClientSideChatTransport implements ChatTransport<UIMessage> {
     provider: 'web-llm' | 'transformers-js'
   ): Promise<ReturnType<typeof webLLM> | ReturnType<typeof transformersJS>> {
     const config = PROVIDER_CONFIGS[provider]
-    
+
     // Return cached model if available
     if (this.cachedModels.has(provider)) {
       console.log(`${config.logPrefix} Using cached model instance`)
@@ -492,10 +521,10 @@ export class ClientSideChatTransport implements ChatTransport<UIMessage> {
     const initPromise = (async () => {
       try {
         let model: ReturnType<typeof webLLM> | ReturnType<typeof transformersJS>
-        
+
         if (provider === 'web-llm') {
           console.log(`${config.logPrefix} Creating WebLLM worker`)
-          
+
           model = webLLM(config.modelId, {
             worker: new Worker(new URL('../webllm-worker.ts', import.meta.url), {
               type: 'module',
@@ -504,7 +533,7 @@ export class ClientSideChatTransport implements ChatTransport<UIMessage> {
         } else {
           // transformers-js
           console.log(`${config.logPrefix} Creating TransformersJS worker`)
-          
+
           model = transformersJS(config.modelId, {
             device: config.deviceType!,
             isVisionModel: config.isVisionModel || false,
@@ -513,7 +542,7 @@ export class ClientSideChatTransport implements ChatTransport<UIMessage> {
             }),
           })
         }
-        
+
         this.cachedModels.set(provider, model)
         console.log(`${config.logPrefix} Model instance created and cached`)
       } catch (error) {

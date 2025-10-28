@@ -17,29 +17,115 @@ import { useModelDownloadProgress } from '@/hooks/use-model-download-progress'
 import { useChatPersistence } from '@/hooks/use-chat-persistence'
 import { useChromeMessageListener } from '@/hooks/use-chrome-message-listener'
 import { useScreenCapture } from '@/hooks/use-screen-capture'
+import { useSelectedTools } from '@/hooks/use-selected-tools'
+import type { ToolSelection } from '@/lib/tools'
 import type { Attachment, UIMessage } from '@/types/chat'
 import './App.css'
-import { isTextPart } from '@/lib/utils'
 
 
 
 // Convert UIMessage to the Message format expected by Chat component
 function convertToMessage(uiMessage: UIMessage, attachments?: Map<string, { url: string; name: string; contentType: string }>): Message {
-  // Extract text content from parts using type guard
+  // Extract text content from parts
   const textContent = uiMessage.parts
-    ?.filter(isTextPart)
-    .map((part) => part.text)
+    ?.filter((part) => part.type === 'text')
+    .map((part) => (part as { type: 'text'; text: string }).text)
     .join('') || ''
 
   // Check if this message has an attachment
   const attachment = attachments?.get(uiMessage.id)
 
-  return {
+  // Convert UI parts to Message parts
+  const messageParts: unknown[] = []
+  const toolInvocations: Array<{
+    state: 'call' | 'result' | 'partial-call'
+    toolName: string
+    result?: unknown
+  }> = []
+
+  uiMessage.parts?.forEach((part) => {
+    // Handle text parts (ignore state field if present)
+    if (part.type === 'text') {
+      messageParts.push({
+        type: 'text',
+        text: (part as { type: 'text'; text: string }).text
+      })
+    }
+    // Handle reasoning parts
+    else if (part.type === 'reasoning') {
+      messageParts.push(part)
+    }
+    // Handle step markers (skip them)
+    else if (part.type === 'step-start') {
+      // Skip step-start markers - they're just structural markers
+    }
+    // Handle tool parts (type: "tool-{toolName}")
+    else if (part.type.startsWith('tool-')) {
+      const toolPart = part as {
+        type: string
+        toolCallId: string
+        state: string
+        input?: unknown
+        output?: unknown
+        providerExecuted?: boolean
+      }
+      
+      const toolName = toolPart.type.replace('tool-', '')
+      console.log('[convertToMessage] Found tool part:', { toolName, state: toolPart.state })
+
+      // Convert tool part state to ToolInvocation state
+      let invocationState: 'call' | 'result' | 'partial-call' = 'call'
+      if (toolPart.state === 'output-available' || toolPart.state === 'output-error') {
+        invocationState = 'result'
+      } else if (toolPart.state === 'input-streaming') {
+        invocationState = 'partial-call'
+      }
+
+      const toolInvocation = {
+        state: invocationState,
+        toolName,
+        input: toolPart.input, // Store input data
+        isError: toolPart.state === 'output-error', // Add error flag
+      } as { state: 'call' | 'result' | 'partial-call'; toolName: string; input?: unknown; result?: unknown; isError?: boolean }
+
+      // Add result data if available
+      if (toolPart.output) {
+        toolInvocation.result = toolPart.output
+      }
+
+      toolInvocations.push(toolInvocation)
+
+      // Also add to parts for component rendering
+      messageParts.push({
+        type: 'tool-invocation',
+        toolInvocation
+      })
+    }
+  })
+
+  // Also check if toolInvocations exist directly on the message
+  const messageToolInvocations = (uiMessage as { toolInvocations?: unknown[] }).toolInvocations
+  if (messageToolInvocations) {
+    console.log('[convertToMessage] Found toolInvocations directly on message:', messageToolInvocations)
+    toolInvocations.push(...(messageToolInvocations as Array<{
+      state: 'call' | 'result' | 'partial-call'
+      toolName: string
+      result?: unknown
+    }>))
+  }
+
+  const result = {
     id: uiMessage.id,
     role: uiMessage.role,
     content: textContent,
     experimental_attachments: attachment ? [attachment] : undefined,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    toolInvocations: toolInvocations.length > 0 ? (toolInvocations as any) : undefined,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    parts: messageParts.length > 0 ? (messageParts as any) : undefined,
   }
+
+  return result
 }
 
 function App() {
@@ -70,6 +156,41 @@ function App() {
   // ====================
   // Initialize transport once (prevents double-init in React Strict Mode)
   const transport = useMemo(() => new ClientSideChatTransport('auto'), [])
+
+  // Tool selection management - global state for persistence
+  const { toggleTool: toggleGlobalTool } = useSelectedTools()
+
+  // Per-message tool selection - resets for each new message
+  const [messageTools, setMessageTools] = useState<ToolSelection>({})
+
+  // Update transport with message-specific tools
+  useEffect(() => {
+    const toolIds = Object.entries(messageTools)
+      .filter(([, isSelected]) => isSelected)
+      .map(([id]) => id)
+    transport.setSelectedTools(toolIds)
+    console.log('[App] Message tools updated:', toolIds)
+  }, [messageTools, transport])
+
+  // Reset message tools when input changes (user is typing a new message)
+  useEffect(() => {
+    if (input.trim()) {
+      // If user has typed something, keep current tool selection
+      return
+    }
+    // Reset to empty when input is cleared (new message)
+    setMessageTools({})
+  }, [input])
+
+  // Handle tool toggle for current message
+  const handleToolChange = useCallback((toolId: string, enabled: boolean) => {
+    setMessageTools((prev: ToolSelection) => ({
+      ...prev,
+      [toolId]: enabled
+    }))
+    // Also update global state for persistence
+    toggleGlobalTool(toolId, enabled)
+  }, [toggleGlobalTool])
 
   // Chat management
   const { chats, currentChat, isLoading: isChatsLoading, createChat, selectChat, updateCurrentChatMessages, updateCurrentChatTitle, deleteChatById } = useChats(currentChatId, setCurrentChatId)
@@ -369,6 +490,8 @@ function App() {
           onAttachImage={setAttachedImage}
           onScreenCapture={screenCapture.capture}
           isCapturingScreen={screenCapture.isCapturing}
+          selectedTools={messageTools}
+          onToolChange={handleToolChange}
           suggestions={[
             'What is the weather in San Francisco?',
             'Explain step-by-step how to solve this math problem: If x² + 6x + 9 = 25, what is x?',

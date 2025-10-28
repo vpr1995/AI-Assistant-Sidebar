@@ -11,6 +11,7 @@ export interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
   timestamp: number
+  parts?: unknown[] // Store full parts array to preserve tool invocations and other structured data
 }
 
 export interface Chat {

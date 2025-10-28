@@ -39,15 +39,3 @@ export async function detectActiveProvider(): Promise<AIProvider> {
   console.warn('[App] ✗ No AI providers available!')
   return null
 }
-
- // Type guard to check if a part is a text part
-export function isTextPart(part: unknown): part is { type: 'text'; text: string } {
-  return (
-    typeof part === 'object' &&
-    part !== null &&
-    'type' in part &&
-    part.type === 'text' &&
-    'text' in part &&
-    typeof (part as { text: unknown }).text === 'string'
-  )
-}

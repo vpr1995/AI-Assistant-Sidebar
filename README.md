@@ -15,6 +15,7 @@
 - **🎤 Voice Input**: Speech-to-text using browser's native Speech Recognition API
 - **📋 Copy Messages**: One-click copy for any AI response
 - **🖥️ Screen Capture**: Capture your tab, a window, or the entire desktop and attach a screenshot directly to chat (Built-in AI only)
+- **🔧 AI Tools**: Enable function calling for the AI to use external tools like weather lookup (Built-in AI only)
 
 **Summarization & Content Processing**
 - **📄 Page Summarization**: Right-click any web page → instant AI summary
@@ -55,6 +56,7 @@ Chrome Extension Architecture:
 5. **🎤 Voice Input** — Click microphone button, speak, auto-transcribes
 6. **🖼️ Image Chat** — Upload images (Built-in AI only) for vision-based questions
 7. **💾 Multi-Chat** — Create multiple conversations, all saved automatically
+8. **🔧 AI Tools** — Click settings icon to enable function calling tools (Built-in AI only)
 
 All features work 100% offline after initial model download!
 
@@ -167,6 +169,24 @@ Notes:
 4. The extension auto-stops after 2 seconds of silence
 5. Review the transcribed text and press Send
 
+### AI Tools (Function Calling)
+
+1. Click the **settings icon** (⚙️) next to the message input
+2. A tool picker popover appears showing available tools
+3. **Check/uncheck tools** to enable/disable them for the AI
+4. Currently available tools:
+   - **Weather** — Get weather information for a location
+   - More tools can be added by developers
+5. Ask a question that requires the tool (e.g., "What's the weather in San Francisco?")
+6. The AI will automatically call the enabled tool and display results
+7. Tool calls appear as **collapsible blocks** in the chat showing input/output
+
+**Notes:**
+- AI Tools only work with **Built-in AI** (Gemini Nano) provider
+- Tool selections are saved to chrome.storage.local
+- Tool results are preserved in chat history
+- Maximum 5 tool calls per message (configurable in code)
+
 ## 🔧 Configuration
 
 ### Browser Requirements
@@ -218,6 +238,7 @@ src/
 - [Project Memories](.serena/memories/): The following memory files contain detailed implementation notes:
   - `project_overview` — High-level project purpose, tech stack, and development workflow
   - `ai_provider_architecture` — Triple-provider system, multimodal support, and Chrome Summarizer API
+  - `ai-tools-implementation` — Tool registry, UI picker, storage, and function calling integration
   - `advanced-features` — Chat persistence, image upload, and native summarizer integration
   - `current_implementation_status` — Feature completion status and testing results
   - `transformersjs-chrome-patch` — Custom CSP solution for Transformers.js in Chrome extensions
@@ -230,6 +251,10 @@ src/
 **Where to look for primary logic:**
 
 - AI provider selection & streaming: `src/lib/client-side-chat-transport.ts`
+- **AI Tools system**: `src/lib/tools/` (registry, tool storage, types)
+- **Tool picker UI**: `src/components/ui/tool-picker.tsx`
+- **Tool selection hook**: `src/hooks/use-selected-tools.ts`
+- **Tool storage**: `src/lib/tool-storage.ts`
 - Page summarization flow & failover: `src/lib/summarizer-utils.ts`, `src/background.ts`, `src/content.ts`, `src/App.tsx`
 - YouTube summarization: `src/lib/youtube-utils.ts`
 - Text rewriting/tone presets: `src/lib/rewrite-utils.ts`

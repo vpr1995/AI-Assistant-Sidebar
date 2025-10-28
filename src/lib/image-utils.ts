@@ -26,20 +26,6 @@ export async function fileToBase64(file: File | Blob): Promise<string> {
 }
 
 /**
- * Get MIME type for an image file
- * @param file - The image file
- * @returns MIME type string or 'image/png' as default
- */
-export function getImageMimeType(file: File | Blob): string {
-  const mimeType = file.type
-  if (mimeType && mimeType.startsWith('image/')) {
-    return mimeType
-  }
-  // Default to png if type is not detected
-  return 'image/png'
-}
-
-/**
  * Validate if file is a supported image format
  * @param file - The file to validate
  * @returns true if file is a supported image format

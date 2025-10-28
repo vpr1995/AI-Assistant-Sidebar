@@ -11,8 +11,10 @@ import { useAutosizeTextArea } from "@/hooks/use-autosize-textarea"
 import { AudioVisualizer } from "@/components/ui/audio-visualizer"
 import { Button } from "@/components/ui/button"
 import { ProviderSelector } from "@/components/ui/provider-selector"
+import { ToolPicker } from "@/components/ui/tool-picker"
 import { InterruptPrompt } from "@/components/ui/interrupt-prompt"
 import { createImagePreview, isSupportedImageFormat } from "@/lib/image-utils"
+import type { ToolSelection } from "@/lib/tools"
 
 interface MessageInputBaseProps
   extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
@@ -29,6 +31,8 @@ interface MessageInputBaseProps
   onAttachImage?: (image: { file: File; preview: string } | null) => void
   onScreenCapture?: () => void
   isCapturingScreen?: boolean
+  selectedTools?: ToolSelection
+  onToolChange?: (toolId: string, enabled: boolean) => void
 }
 
 interface MessageInputWithoutAttachmentProps extends MessageInputBaseProps {
@@ -53,6 +57,8 @@ export function MessageInput({
   onAttachImage,
   onScreenCapture,
   isCapturingScreen = false,
+  selectedTools,
+  onToolChange,
   ...props
 }: MessageInputProps) {
   const [showInterruptPrompt, setShowInterruptPrompt] = useState(false)
@@ -268,6 +274,12 @@ export function MessageInput({
           </div>
 
           <div className="flex items-center gap-2">
+            {selectedTools && onToolChange && preferredProvider === 'built-in-ai' && (
+              <ToolPicker
+                selectedTools={selectedTools}
+                onToolChange={onToolChange}
+              />
+            )}
             {isSpeechSupported && (
               <Button
                 type="button"

@@ -1,7 +1,7 @@
-import React, { useMemo, useState } from "react"
+import React, { useMemo, useState, ReactNode } from "react"
 import { cva, type VariantProps } from "class-variance-authority"
 import { motion } from "framer-motion"
-import { Ban, ChevronRight, Code2, Loader2, Terminal } from "lucide-react"
+import { AlertTriangle, Ban, ChevronRight, Code2, Loader2, Terminal } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import {
@@ -11,6 +11,15 @@ import {
 } from "@/components/ui/collapsible"
 import { FilePreview } from "@/components/ui/file-preview"
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer"
+
+// Helper to safely convert unknown to string for display
+function safeStringify(value: unknown): ReactNode {
+  try {
+    return JSON.stringify(value, null, 2)
+  } catch {
+    return String(value)
+  }
+}
 
 const chatBubbleVariants = cva(
   "group/message relative break-words rounded-lg p-3 text-sm sm:max-w-[70%]",
@@ -68,14 +77,16 @@ interface PartialToolCall {
 interface ToolCall {
   state: "call"
   toolName: string
+  input?: unknown
 }
 
 interface ToolResult {
   state: "result"
   toolName: string
+  input?: unknown
   result: {
     __cancelled?: boolean
-    [key: string]: any
+    [key: string]: unknown
   }
 }
 
@@ -99,7 +110,7 @@ interface TextPart {
 // For compatibility with AI SDK types, not used
 interface SourcePart {
   type: "source"
-  source?: any
+  source?: unknown
 }
 
 interface FilePart {
@@ -117,6 +128,15 @@ interface StepStartPart {
   type: "step-start"
 }
 
+interface ToolPart {
+  type: `tool-${string}`
+  toolCallId: string
+  state: "input-streaming" | "output-available" | "output-error" | "streaming" | "complete"
+  input?: unknown
+  output?: unknown
+  providerExecuted?: boolean
+}
+
 type MessagePart =
   | TextPart
   | ReasoningPart
@@ -125,6 +145,7 @@ type MessagePart =
   | FilePart
   | ImagePart
   | StepStartPart
+  | ToolPart
 
 export interface Message {
   id: string
@@ -256,12 +277,16 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
       } else if (part.type === "reasoning") {
         return <ReasoningBlock key={`reasoning-${index}`} part={part} />
       } else if (part.type === "tool-invocation") {
+        const toolInvocationPart = part as ToolInvocationPart
         return (
           <ToolCall
             key={`tool-${index}`}
-            toolInvocations={[part.toolInvocation]}
+            toolInvocations={[toolInvocationPart.toolInvocation]}
           />
         )
+      } else if (part.type.startsWith("tool-")) {
+        // Handle new tool part format from AI SDK
+        return <ToolPartRenderer key={`tool-${index}`} part={part as ToolPart} />
       }
       return null
     })
@@ -352,14 +377,25 @@ const ReasoningBlock = ({ part }: { part: ReasoningPart }) => {
 function ToolCall({
   toolInvocations,
 }: Pick<ChatMessageProps, "toolInvocations">) {
+  const [openStates, setOpenStates] = useState<Record<number, boolean>>({})
+
   if (!toolInvocations?.length) return null
+
+  const toggleOpen = (index: number) => {
+    setOpenStates(prev => ({ ...prev, [index]: !prev[index] }))
+  }
 
   return (
     <div className="flex flex-col items-start gap-2">
       {toolInvocations.map((invocation, index) => {
         const isCancelled =
           invocation.state === "result" &&
-          invocation.result.__cancelled === true
+          invocation.result &&
+          typeof invocation.result === 'object' &&
+          (invocation.result as { __cancelled?: boolean }).__cancelled === true
+
+        // Check for error state (extended property from convertToMessage)
+        const isError = (invocation as { isError?: boolean }).isError === true
 
         if (isCancelled) {
           return (
@@ -401,34 +437,175 @@ function ToolCall({
                 <Loader2 className="h-3 w-3 animate-spin" />
               </div>
             )
-          case "result":
+          case "result": {
+            const isOpen = openStates[index] || false
             return (
-              <div
-                key={index}
-                className="flex flex-col gap-1.5 rounded-lg border bg-muted/50 px-3 py-2 text-sm"
-              >
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Code2 className="h-4 w-4" />
-                  <span>
-                    Result from{" "}
-                    <span className="font-mono">
-                      {"`"}
-                      {invocation.toolName}
-                      {"`"}
-                    </span>
-                  </span>
-                </div>
-                <pre className="overflow-x-auto whitespace-pre-wrap text-foreground">
-                  {JSON.stringify(invocation.result, null, 2)}
-                </pre>
+              <div key={index} className="mb-2 flex flex-col items-start sm:max-w-[70%]">
+                <Collapsible
+                  open={isOpen}
+                  onOpenChange={() => toggleOpen(index)}
+                  className="group w-full overflow-hidden rounded-lg border bg-muted/50"
+                >
+                  <div className="flex items-center p-2">
+                    <CollapsibleTrigger asChild>
+                      <button className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+                        <ChevronRight className="h-4 w-4 transition-transform group-data-[state=open]:rotate-90" />
+                        {isError ? (
+                          <AlertTriangle className="h-4 w-4 text-destructive" />
+                        ) : (
+                          <Code2 className="h-4 w-4" />
+                        )}
+                        <span>
+                          {isError ? "Error from" : "Result from"}{" "}
+                          <span className="font-mono">
+                            {"`"}
+                            {invocation.toolName}
+                            {"`"}
+                          </span>
+                        </span>
+                      </button>
+                    </CollapsibleTrigger>
+                  </div>
+                  <CollapsibleContent forceMount>
+                    <motion.div
+                      initial={false}
+                      animate={isOpen ? "open" : "closed"}
+                      variants={{
+                        open: { height: "auto", opacity: 1 },
+                        closed: { height: 0, opacity: 0 },
+                      }}
+                      transition={{ duration: 0.3, ease: [0.04, 0.62, 0.23, 0.98] }}
+                      className="border-t"
+                    >
+                      <div className="space-y-2 p-2">
+                        {invocation.input !== undefined && (
+                          <div className="text-xs text-muted-foreground">
+                            <strong>Input:</strong>
+                            <pre className="mt-1 overflow-x-auto whitespace-pre-wrap rounded bg-background/50 p-1 text-foreground">
+                              {safeStringify(invocation.input)}
+                            </pre>
+                          </div>
+                        )}
+                        <div className="text-xs text-muted-foreground">
+                          <strong>{isError ? "Error" : "Output"}:</strong>
+                          <pre className={cn(
+                            "mt-1 overflow-x-auto whitespace-pre-wrap rounded bg-background/50 p-1",
+                            isError ? "text-destructive" : "text-foreground"
+                          )}>
+                            {safeStringify(invocation.result)}
+                          </pre>
+                        </div>
+                      </div>
+                    </motion.div>
+                  </CollapsibleContent>
+                </Collapsible>
               </div>
             )
+          }
           default:
             return null
         }
       })}
     </div>
   )
+}
+
+function ToolPartRenderer({ part }: { part: ToolPart }) {
+  const [isOpen, setIsOpen] = useState(false)
+  const toolName = part.type.replace("tool-", "")
+
+  switch (part.state) {
+    case "input-streaming":
+      return (
+        <div className="flex items-center gap-2 rounded-lg border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
+          <Terminal className="h-4 w-4" />
+          <span>
+            Calling{" "}
+            <span className="font-mono">
+              {"`"}
+              {toolName}
+              {"`"}
+            </span>
+            ...
+          </span>
+          <Loader2 className="h-3 w-3 animate-spin" />
+        </div>
+      )
+    case "output-available":
+    case "output-error": {
+      const isError = part.state === "output-error"
+      return (
+        <div className="mb-2 flex flex-col items-start sm:max-w-[70%]">
+          <Collapsible
+            open={isOpen}
+            onOpenChange={setIsOpen}
+            className="group w-full overflow-hidden rounded-lg border bg-muted/50"
+          >
+            <div className="flex items-center p-2">
+              <CollapsibleTrigger asChild>
+                <button className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+                  <ChevronRight className="h-4 w-4 transition-transform group-data-[state=open]:rotate-90" />
+                  {isError ? (
+                    <AlertTriangle className="h-4 w-4 text-destructive" />
+                  ) : (
+                    <Code2 className="h-4 w-4" />
+                  )}
+                  <span>
+                    {isError ? "Error from" : "Result from"}{" "}
+                    <span className="font-mono">
+                      {"`"}
+                      {toolName}
+                      {"`"}
+                    </span>
+                  </span>
+                </button>
+              </CollapsibleTrigger>
+            </div>
+            <CollapsibleContent forceMount>
+              <motion.div
+                initial={false}
+                animate={isOpen ? "open" : "closed"}
+                variants={{
+                  open: { height: "auto", opacity: 1 },
+                  closed: { height: 0, opacity: 0 },
+                }}
+                transition={{ duration: 0.3, ease: [0.04, 0.62, 0.23, 0.98] }}
+                className="border-t"
+              >
+                <div className="space-y-2 p-2">
+                  {part.input !== undefined && (
+                    <div className="text-xs text-muted-foreground">
+                      <strong>Input:</strong>
+                      <pre className="mt-1 overflow-x-auto whitespace-pre-wrap rounded bg-background/50 p-1 text-foreground">
+                        {safeStringify(part.input)}
+                      </pre>
+                    </div>
+                  )}
+                  {part.output !== undefined && (
+                    <div className="text-xs text-muted-foreground">
+                      <strong>{isError ? "Error" : "Output"}:</strong>
+                      <pre className={cn(
+                        "mt-1 overflow-x-auto whitespace-pre-wrap rounded bg-background/50 p-1",
+                        isError ? "text-destructive" : "text-foreground"
+                      )}>
+                        {safeStringify(part.output)}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            </CollapsibleContent>
+          </Collapsible>
+        </div>
+      )
+    }
+    case "streaming":
+    case "complete":
+      // These states might not need special UI, or could show completion
+      return null
+    default:
+      return null
+  }
 }
 
 function extractImageDataUrl(content: string): string | null {

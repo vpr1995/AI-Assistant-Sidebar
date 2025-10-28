@@ -17,6 +17,7 @@ import { CopyButton } from "@/components/ui/copy-button"
 import { MessageInput } from "@/components/ui/message-input"
 import { MessageList } from "@/components/ui/message-list"
 import { PromptSuggestions } from "@/components/ui/prompt-suggestions"
+import type { ToolSelection } from "@/lib/tools"
 
 interface ChatPropsBase {
   handleSubmit: (
@@ -44,6 +45,8 @@ interface ChatPropsBase {
   onAttachImage?: (image: { file: File; preview: string } | null) => void
   onScreenCapture?: () => void
   isCapturingScreen?: boolean
+  selectedTools?: ToolSelection
+  onToolChange?: (toolId: string, enabled: boolean) => void
 }
 
 interface ChatPropsWithoutSuggestions extends ChatPropsBase {
@@ -80,6 +83,8 @@ export function Chat({
   onAttachImage,
   onScreenCapture,
   isCapturingScreen = false,
+  selectedTools,
+  onToolChange,
 }: ChatProps) {
   const lastMessage = messages[messages.length - 1]
   const isEmpty = messages.length === 0
@@ -263,6 +268,8 @@ export function Chat({
           onAttachImage={onAttachImage}
           onScreenCapture={onScreenCapture}
           isCapturingScreen={isCapturingScreen}
+          selectedTools={selectedTools}
+          onToolChange={onToolChange}
         />
       </ChatForm>
     </ChatContainer>
