@@ -193,6 +193,10 @@ export class ClientSideChatTransport implements ChatTransport<UIMessage> {
     const prompt: ModelMessage[] = convertToModelMessages(messages) ?? []
     console.log('[ClientSideChatTransport] Prompt messages:', prompt.length)
 
+    // Memory search is now handled by the memoryTool which AI can call explicitly
+    // This provides better control - AI can choose when to search memories
+    console.log('[ClientSideChatTransport] Memory searching available via memoryTool')
+
     // If we have an image attachment for built-in-ai, add it to the last message
     const imageAttachment = (body as Record<string, unknown> | undefined)?.imageAttachment as
       { mediaType: string; data: string } | undefined

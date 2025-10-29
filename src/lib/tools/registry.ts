@@ -3,10 +3,12 @@
  */
 
 import { weatherTool } from './weather-tool'
+import { webSearchTool } from './web-search-tool'
+import { memoryTool } from './memory-tool'
 import type { ToolDefinition, ToolSelection, ToolsRecord } from './types'
 
 // Registry of all available tools - add new tools here
-export const ALL_TOOLS: ToolDefinition[] = [weatherTool]
+export const ALL_TOOLS: ToolDefinition[] = [weatherTool, webSearchTool, memoryTool]
 
 /**
  * Build tools object with only enabled tools for AI provider

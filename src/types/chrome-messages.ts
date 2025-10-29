@@ -40,6 +40,33 @@ export type ChromeMessageAction =
         byline?: string
       }
     }
+  | {
+      action: 'bookmarkMessage'
+      data: {
+        content: string
+        tabId: number
+        url?: string
+      }
+    }
+  | {
+      action: 'saveToMemories'
+      data: {
+        content: string
+        tabId: number
+        url?: string
+      }
+    }
+  | {
+      action: 'savePageSummaryToMemories'
+      data: {
+        title: string
+        content: string
+        url: string
+        excerpt?: string
+        byline?: string
+        siteName?: string
+      }
+    }
 
 /**
  * Type guard to check if a message is a valid ChromeMessageAction
@@ -55,6 +82,6 @@ export function isChromeMessageAction(message: unknown): message is ChromeMessag
     return false
   }
 
-  const validActions = ['sidebarReady', 'summarizePage', 'rewriteText', 'summarizeYouTubeVideo']
+  const validActions = ['sidebarReady', 'summarizePage', 'rewriteText', 'summarizeYouTubeVideo', 'bookmarkMessage', 'saveToMemories', 'savePageSummaryToMemories']
   return validActions.includes(msg.action)
 }

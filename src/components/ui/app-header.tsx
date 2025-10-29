@@ -2,7 +2,7 @@
  * AppHeader Component - Header section of the sidebar with chat controls
  */
 
-import { Plus, ChevronDown, Edit2 } from 'lucide-react'
+import { Plus, ChevronDown, Edit2, Brain, Bookmark } from 'lucide-react'
 import { SettingsMenu } from './settings-menu'
 import type { Chat } from '@/types/chat'
 
@@ -23,6 +23,10 @@ export interface AppHeaderProps {
   onNewChat: () => void
   showChatSidebar: boolean
   onToggleSidebar: () => void
+  
+  // Memory and bookmarks panel toggles
+  onToggleMemoryPanel?: () => void
+  onToggleBookmarksPanel?: () => void
 }
 
 export function AppHeader({
@@ -36,6 +40,8 @@ export function AppHeader({
   onNewChat,
   showChatSidebar,
   onToggleSidebar,
+  onToggleMemoryPanel,
+  onToggleBookmarksPanel,
 }: AppHeaderProps) {
   return (
     <header className="sidebar-header">
@@ -73,6 +79,30 @@ export function AppHeader({
 
       {/* Right: Chat Controls + Settings */}
       <div className="flex items-center gap-2 flex-shrink-0">
+        {/* Memory Panel Button */}
+        {onToggleMemoryPanel && (
+          <button
+            onClick={onToggleMemoryPanel}
+            className="p-1.5 rounded-md transition-all duration-200 hover:bg-accent hover:text-accent-foreground focus:outline-none focus:ring-2 focus:ring-ring dark:focus:ring-offset-background"
+            title="Toggle Memory Panel"
+            aria-label="Toggle Memory Panel"
+          >
+            <Brain className="h-4 w-4" />
+          </button>
+        )}
+
+        {/* Bookmarks Panel Button */}
+        {onToggleBookmarksPanel && (
+          <button
+            onClick={onToggleBookmarksPanel}
+            className="p-1.5 rounded-md transition-all duration-200 hover:bg-accent hover:text-accent-foreground focus:outline-none focus:ring-2 focus:ring-ring dark:focus:ring-offset-background"
+            title="Toggle Bookmarks Panel"
+            aria-label="Toggle Bookmarks Panel"
+          >
+            <Bookmark className="h-4 w-4" />
+          </button>
+        )}
+
         {/* New Chat Button */}
         <button
           onClick={onNewChat}

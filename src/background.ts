@@ -111,6 +111,27 @@ chrome.runtime.onInstalled.addListener(() => {
     });
   });
 
+  // Bookmark message menu (on assistant messages in sidebar)
+  chrome.contextMenus.create({
+    id: 'bookmark-message',
+    title: 'Bookmark this message',
+    contexts: ['selection'],
+  });
+
+  // Save to memories menu (on assistant messages in sidebar)
+  chrome.contextMenus.create({
+    id: 'save-to-memories',
+    title: 'Save to memories',
+    contexts: ['selection'],
+  });
+
+  // Save page summary to memories
+  chrome.contextMenus.create({
+    id: 'save-page-summary-to-memories',
+    title: 'Save page summary to memories',
+    contexts: ['page'],
+  });
+
   console.log('[Background] Context menus created');
 });
 
@@ -200,6 +221,84 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       console.log(`[Background] Rewrite message queued/sent for tone: ${tone}`);
     } catch (error) {
       console.error('[Background] Error handling rewrite text click:', error);
+    }
+  } else if (info.menuItemId === 'bookmark-message' && tab?.id) {
+    const selectedText = info.selectionText;
+    console.log('[Background] Bookmark message clicked');
+
+    try {
+      // Open the side panel first
+      if (chrome.sidePanel && chrome.sidePanel.open) {
+        await chrome.sidePanel.open({ tabId: tab.id });
+      }
+
+      // Send bookmark message to the sidebar
+      sendMessageWhenReady({
+        action: 'bookmarkMessage',
+        data: {
+          content: selectedText,
+          tabId: tab.id,
+          url: tab.url,
+        },
+      });
+
+      console.log('[Background] Bookmark message queued/sent');
+    } catch (error) {
+      console.error('[Background] Error handling bookmark message:', error);
+    }
+  } else if (info.menuItemId === 'save-to-memories' && tab?.id) {
+    const selectedText = info.selectionText;
+    console.log('[Background] Save to memories clicked');
+
+    try {
+      // Open the side panel first
+      if (chrome.sidePanel && chrome.sidePanel.open) {
+        await chrome.sidePanel.open({ tabId: tab.id });
+      }
+
+      // Send save to memories message to the sidebar
+      sendMessageWhenReady({
+        action: 'saveToMemories',
+        data: {
+          content: selectedText,
+          tabId: tab.id,
+          url: tab.url,
+        },
+      });
+
+      console.log('[Background] Save to memories message queued/sent');
+    } catch (error) {
+      console.error('[Background] Error handling save to memories:', error);
+    }
+  } else if (info.menuItemId === 'save-page-summary-to-memories' && tab?.id) {
+    console.log('[Background] Save page summary to memories clicked');
+    
+    try {
+      // Open the side panel first
+      if (chrome.sidePanel && chrome.sidePanel.open) {
+        await chrome.sidePanel.open({ tabId: tab.id });
+      }
+      
+      // Send message to content script to extract page content
+      const response = await chrome.tabs.sendMessage(tab.id, {
+        action: 'extractPageContent',
+      });
+      
+      if (response.success) {
+        console.log('[Background] Content extracted successfully for summary memory');
+        
+        // Send the extracted content to the sidebar with savePageSummaryToMemories action
+        sendMessageWhenReady({
+          action: 'savePageSummaryToMemories',
+          data: response.data,
+        });
+
+        console.log('[Background] Save page summary to memories message queued/sent');
+      } else {
+        console.error('[Background] Failed to extract content:', response.error);
+      }
+    } catch (error) {
+      console.error('[Background] Error handling save page summary to memories:', error);
     }
   }
 });

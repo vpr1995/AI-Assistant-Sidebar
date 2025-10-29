@@ -16,6 +16,7 @@
     "@built-in-ai/transformers-js": "0.3.2",
     "@built-in-ai/web-llm": "0.3.1",
     "@danielxceron/youtube-transcript": "^1.2.3",
+    "@electric-sql/pglite": "^0.3.11",
     "@huggingface/transformers": "^3.7.6",
     "@mozilla/readability": "^0.6.0",
     "@radix-ui/react-collapsible": "^1.1.12",

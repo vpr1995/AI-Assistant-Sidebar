@@ -17,6 +17,14 @@
 - **🖥️ Screen Capture**: Capture your tab, a window, or the entire desktop and attach a screenshot directly to chat (Built-in AI only)
 - **🔧 AI Tools**: Enable function calling for the AI to use external tools like weather lookup (Built-in AI only)
 
+**Knowledge Management & Memory**
+- **🧠 Semantic Memory Search**: Save important information with automatic vector embeddings (384-dim)
+- **🔖 Bookmarks**: Quick-save any message with tags and optional notes
+- **📚 Memory Panels**: Browse, search, and manage all saved memories and bookmarks
+- **🔄 Bookmark to Memory**: Convert bookmarked messages to searchable memories with one click
+- **🌐 URL Preservation**: All memories track their source (web page, chat, etc.) with clickable links
+- **✨ Save Page Summaries**: Auto-summarize web pages and save to memories for later reference
+
 **Summarization & Content Processing**
 - **📄 Page Summarization**: Right-click any web page → instant AI summary
 - **📺 YouTube Summarization**: Extract and summarize YouTube video transcripts
@@ -42,6 +50,8 @@ Chrome Extension Architecture:
 ├── Client-side LLMs    (Built-in AI → WebLLM → Transformers.js fallback)
 ├── Content Script      (@mozilla/readability for page extraction)
 ├── Background Worker   (Context menu & message routing)
+├── Memory System       (PGlite + pgvector for semantic search)
+├── Bookmarks Storage   (chrome.storage.local for fast access)
 └── Zero External APIs  (Complete privacy)
 ```
 
@@ -50,13 +60,16 @@ Chrome Extension Architecture:
 **Try These Right After Installing:**
 
 1. **💬 Chat with AI** — Open sidebar, type a question, get instant streaming responses
-2. **📄 Summarize Pages** — Right-click any article → "Summarize this page"
+2. **📄 Summarize Pages** — Right-click any article → "Summarize this page" → auto-save to memories
 3. **📺 YouTube Summaries** — Right-click on YouTube videos → "Summarize this video"
 4. **✍️ Rewrite Text** — Select text → Right-click → "Rewrite in [Tone]" (8 tones available)
 5. **🎤 Voice Input** — Click microphone button, speak, auto-transcribes
 6. **🖼️ Image Chat** — Upload images (Built-in AI only) for vision-based questions
 7. **💾 Multi-Chat** — Create multiple conversations, all saved automatically
-8. **🔧 AI Tools** — Click settings icon to enable function calling tools (Built-in AI only)
+8. **🔖 Bookmark Messages** — Hover over any assistant message, click bookmark icon to save
+9. **🧠 Search Memories** — Click the brain icon to open Memory Panel and search all saved knowledge
+10. **📚 Manage Bookmarks** — Click bookmark icon to view, search, and organize all saved messages
+11. **🔧 AI Tools** — Click settings icon to enable function calling tools (Built-in AI only)
 
 All features work 100% offline after initial model download!
 
@@ -115,6 +128,44 @@ Then build and reload in `chrome://extensions/` to test extension-specific APIs.
 - Each chat maintains its own complete history
 - Up to 50 chats stored (oldest auto-deleted when limit reached)
 
+### Manage Memories & Bookmarks
+
+#### Save Bookmarks
+1. Hover over any assistant message in the chat
+2. Click the **bookmark icon** (📖) in the message actions
+3. The message is saved instantly with timestamp and source
+4. Bookmarks can be tagged and given optional notes
+
+#### Search Memories
+1. Click the **brain icon** (🧠) in the header to open the Memory Panel
+2. Type a search query to find relevant saved information
+3. Results display with relevance scores
+4. Click any result to see full content and source URL
+5. All searches use semantic similarity (vector embeddings) + keyword matching
+
+#### Convert Bookmark to Memory
+1. Click **bookmark icon** to open the Bookmarks Panel
+2. Find a bookmark you want to keep long-term
+3. Click **"✨ Save to Memories"** in the expanded view
+4. The bookmark is automatically indexed with vector embeddings for semantic search
+
+#### Save Page Summary to Memory
+1. Navigate to any article or web page
+2. **Right-click** → "Save page summary to memories"
+3. The extension automatically:
+   - Extracts the main content using AI
+   - Generates a concise summary (Chrome Summarizer API or LLM)
+   - Saves to memories with the page URL and "page-summary" tag
+   - Shows progress toasts: "Summarizing..." → "Saving..." → Success
+4. Later, search memories with related keywords to find the summary
+
+**Memory Features:**
+- **Semantic Search**: Uses AI embeddings (384-dimensional vectors) to find related information
+- **Keyword Search**: Also finds memories matching specific words or phrases
+- **Smart Storage**: Memories stored in local PGlite database with full-text indexing
+- **Source Tracking**: Every memory knows where it came from (URL, chat title, date)
+- **AI Integration**: Ask the AI to "search my memories for..." — the AI can explicitly search
+
 ### Summarize Any Web Page
 
 1. Navigate to any article, blog post, or news page
@@ -123,7 +174,8 @@ Then build and reload in `chrome://extensions/` to test extension-specific APIs.
 4. The sidebar opens with a summarized view:
    - **Chrome Summarizer API** (when available in Chrome 128+) — native, efficient summaries
    - **LLM Fallback** (Built-in AI → WebLLM → Transformers.js) — full-text summarization
-5. Continue the conversation about the page content
+5. **Optional**: Click the save icon to save the summary to memories
+6. Continue the conversation about the page content
 
 ### Summarize YouTube Videos
 

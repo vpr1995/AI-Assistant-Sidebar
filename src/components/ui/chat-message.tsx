@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/collapsible"
 import { FilePreview } from "@/components/ui/file-preview"
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer"
+import { BookmarkButton } from "@/components/ui/bookmark-button"
 
 // Helper to safely convert unknown to string for display
 function safeStringify(value: unknown): ReactNode {
@@ -161,9 +162,13 @@ export interface ChatMessageProps extends Message {
   showTimeStamp?: boolean
   animation?: Animation
   actions?: React.ReactNode
+  messageId?: string // For bookmarking
+  chatId?: string // For bookmarking
+  chatTitle?: string // For bookmarking
 }
 
 export const ChatMessage: React.FC<ChatMessageProps> = ({
+  id,
   role,
   content,
   createdAt,
@@ -173,6 +178,9 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
   experimental_attachments,
   toolInvocations,
   parts,
+  messageId,
+  chatId,
+  chatTitle,
 }) => {
   const files = useMemo(() => {
     return experimental_attachments?.map((attachment) => {
@@ -254,11 +262,20 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
           >
             <div className={cn(chatBubbleVariants({ isUser, animation }))}>
               <MarkdownRenderer>{part.text}</MarkdownRenderer>
-              {actions ? (
-                <div className="absolute -bottom-4 right-2 flex space-x-1 rounded-lg border bg-background p-1 text-foreground opacity-0 transition-opacity group-hover/message:opacity-100">
-                  {actions}
-                </div>
-              ) : null}
+              <div className="absolute -bottom-4 right-2 flex space-x-1 rounded-lg border bg-background p-1 text-foreground opacity-0 transition-opacity group-hover/message:opacity-100">
+                {actions}
+                {!isUser && messageId && chatId && chatTitle && (
+                  <BookmarkButton
+                    messageId={messageId}
+                    chatId={chatId}
+                    content={part.text}
+                    role={role as 'user' | 'assistant'}
+                    chatTitle={chatTitle}
+                    size="sm"
+                    variant="ghost"
+                  />
+                )}
+              </div>
             </div>
 
             {showTimeStamp && createdAt ? (
@@ -300,11 +317,20 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
     <div className={cn("flex flex-col", isUser ? "items-end" : "items-start")}>
       <div className={cn(chatBubbleVariants({ isUser, animation }))}>
         <MarkdownRenderer>{content}</MarkdownRenderer>
-        {actions ? (
-          <div className="absolute -bottom-4 right-2 flex space-x-1 rounded-lg border bg-background p-1 text-foreground opacity-0 transition-opacity group-hover/message:opacity-100">
-            {actions}
-          </div>
-        ) : null}
+        <div className="absolute -bottom-4 right-2 flex space-x-1 rounded-lg border bg-background p-1 text-foreground opacity-0 transition-opacity group-hover/message:opacity-100">
+          {actions}
+          {!isUser && messageId && chatId && chatTitle && (
+            <BookmarkButton
+              messageId={messageId}
+              chatId={chatId}
+              content={content}
+              role={role as 'user' | 'assistant'}
+              chatTitle={chatTitle}
+              size="sm"
+              variant="ghost"
+            />
+          )}
+        </div>
       </div>
 
       {showTimeStamp && createdAt ? (

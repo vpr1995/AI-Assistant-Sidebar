@@ -49,6 +49,9 @@ function copyTransformersAssetsPlugin(): PluginOption {
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss(), copyTransformersAssetsPlugin()],
+  worker: {
+    format: 'es', // Use ES format for workers instead of iife
+  },
   build: {
     outDir: 'dist',
     rollupOptions: {

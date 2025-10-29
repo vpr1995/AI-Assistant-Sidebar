@@ -9,6 +9,9 @@ import { NewChatDialog } from '@/components/ui/new-chat-dialog'
 import { AppHeader } from '@/components/ui/app-header'
 import { ProviderStatusBanners } from '@/components/ui/provider-status-banners'
 import { ScreenCapturePreviewDialog } from '@/components/ui/screen-capture-preview-dialog'
+import { MemoryPanel } from '@/components/ui/memory-panel'
+import { BookmarksPanel } from '@/components/ui/bookmarks-panel'
+import { Toaster } from '@/components/ui/sonner'
 import type { Message } from '@/components/ui/chat-message'
 import { useChats } from '@/hooks/use-chats'
 import { useAIProvider } from '@/hooks/use-ai-provider'
@@ -20,6 +23,7 @@ import { useScreenCapture } from '@/hooks/use-screen-capture'
 import { useSelectedTools } from '@/hooks/use-selected-tools'
 import type { ToolSelection } from '@/lib/tools'
 import type { Attachment, UIMessage } from '@/types/chat'
+import { initializeDatabase } from '@/lib/migrations'
 import './App.css'
 
 
@@ -71,7 +75,6 @@ function convertToMessage(uiMessage: UIMessage, attachments?: Map<string, { url:
       }
       
       const toolName = toolPart.type.replace('tool-', '')
-      console.log('[convertToMessage] Found tool part:', { toolName, state: toolPart.state })
 
       // Convert tool part state to ToolInvocation state
       let invocationState: 'call' | 'result' | 'partial-call' = 'call'
@@ -145,6 +148,10 @@ function App() {
   const [showNewChatDialog, setShowNewChatDialog] = useState(false)
   const [showChatSidebar, setShowChatSidebar] = useState(false)
 
+  // Memory and bookmarks panel state
+  const [showMemoryPanel, setShowMemoryPanel] = useState(false)
+  const [showBookmarksPanel, setShowBookmarksPanel] = useState(false)
+
   // Track if we've already auto-created a chat for current session
   const autoCreatedRef = useRef(false)
 
@@ -158,10 +165,25 @@ function App() {
   const transport = useMemo(() => new ClientSideChatTransport('auto'), [])
 
   // Tool selection management - global state for persistence
-  const { toggleTool: toggleGlobalTool } = useSelectedTools()
+  const { tools: globalTools, toggleTool: toggleGlobalTool } = useSelectedTools()
 
   // Per-message tool selection - resets for each new message
   const [messageTools, setMessageTools] = useState<ToolSelection>({})
+
+  // Initialize messageTools from global tools on mount
+  useEffect(() => {
+    setMessageTools(globalTools)
+  }, [globalTools])
+
+  // Load global tool selection on mount (don't reset tools on input changes)
+  // Tools persist across messages unless explicitly toggled by user
+  // Also initialize the database
+  useEffect(() => {
+    // Initialize database on app startup
+    initializeDatabase().catch((error) => {
+      console.error('[App] Failed to initialize database:', error)
+    })
+  }, [])
 
   // Update transport with message-specific tools
   useEffect(() => {
@@ -171,16 +193,6 @@ function App() {
     transport.setSelectedTools(toolIds)
     console.log('[App] Message tools updated:', toolIds)
   }, [messageTools, transport])
-
-  // Reset message tools when input changes (user is typing a new message)
-  useEffect(() => {
-    if (input.trim()) {
-      // If user has typed something, keep current tool selection
-      return
-    }
-    // Reset to empty when input is cleared (new message)
-    setMessageTools({})
-  }, [input])
 
   // Handle tool toggle for current message
   const handleToolChange = useCallback((toolId: string, enabled: boolean) => {
@@ -254,6 +266,42 @@ function App() {
     saveCurrentMessages,
     rawMessages
   })
+
+  // Handle saving bookmark to memories
+  const handleSaveBookmarkToMemories = useCallback(async (content: string, sourceUrl?: string) => {
+    try {
+      const { saveMemory } = await import('@/lib/memory-storage')
+      const { getEmbedding } = await import('@/lib/embeddings')
+
+      // Generate embedding for the content
+      let embedding: number[] | undefined
+      try {
+        embedding = await getEmbedding(content)
+        console.log('[App] Generated embedding for memory:', embedding.length, 'dimensions')
+      } catch (embeddingError) {
+        console.warn('[App] Failed to generate embedding, memory will be searchable by keyword only:', embeddingError)
+        // Continue without embedding
+      }
+
+      // Save the bookmark as a memory
+      await saveMemory({
+        content,
+        embedding,
+        category: 'reference',
+        tags: ['bookmarked-message', 'user-saved'],
+        sourceUrl,
+        sourceChatId: currentChatId || undefined,
+        sourceChatTitle: currentChat?.title || 'Web Selection',
+        timestamp: Date.now(),
+      })
+
+      toast.success('Bookmark saved to memories!')
+    } catch (error) {
+      console.error('[App] Error saving bookmark to memories:', error)
+      toast.error('Failed to save to memories. Please try again.')
+      throw error
+    }
+  }, [currentChatId, currentChat?.title])
 
   // Associate pending attachment with the latest user message
   useEffect(() => {
@@ -448,6 +496,8 @@ function App() {
         onNewChat={() => setShowNewChatDialog(true)}
         showChatSidebar={showChatSidebar}
         onToggleSidebar={() => setShowChatSidebar(!showChatSidebar)}
+        onToggleMemoryPanel={() => setShowMemoryPanel(!showMemoryPanel)}
+        onToggleBookmarksPanel={() => setShowBookmarksPanel(!showBookmarksPanel)}
       />
 
       {/* Provider Status Banners */}
@@ -492,6 +542,11 @@ function App() {
           isCapturingScreen={screenCapture.isCapturing}
           selectedTools={messageTools}
           onToolChange={handleToolChange}
+          messageOptions={(message) => ({
+            messageId: message.id,
+            chatId: currentChatId || '',
+            chatTitle: currentChat?.title || 'Unknown Chat',
+          })}
           suggestions={[
             'What is the weather in San Francisco?',
             'Explain step-by-step how to solve this math problem: If x² + 6x + 9 = 25, what is x?',
@@ -516,6 +571,42 @@ function App() {
               setShowChatSidebar(false)
             }}
             onDeleteChat={(chatId) => deleteChatById(chatId)}
+          />
+        </div>
+      )}
+
+      {/* Memory Panel Overlay */}
+      {showMemoryPanel && (
+        <div
+          className="absolute inset-0 bg-black/50 z-40"
+          onClick={(e) => {
+            // Only close if clicking on background, not on panel
+            if (e.target === e.currentTarget) {
+              setShowMemoryPanel(false)
+            }
+          }}
+        >
+          <MemoryPanel
+            onClose={() => setShowMemoryPanel(false)}
+          />
+        </div>
+      )}
+
+      {/* Bookmarks Panel Overlay */}
+      {showBookmarksPanel && (
+        <div
+          className="absolute inset-0 bg-black/50 z-40"
+          onClick={(e) => {
+            // Only close if clicking on background, not on panel
+            if (e.target === e.currentTarget) {
+              setShowBookmarksPanel(false)
+            }
+          }}
+        >
+          <BookmarksPanel
+            chatId={currentChatId || ''}
+            onClose={() => setShowBookmarksPanel(false)}
+            onSaveToMemories={handleSaveBookmarkToMemories}
           />
         </div>
       )}
@@ -545,6 +636,9 @@ function App() {
         onRetake={screenCapture.capture}
         onCancel={screenCapture.closeCaptureFlow}
       />
+
+      {/* Toast Notifications */}
+      <Toaster />
     </div>
   )
 }

@@ -254,6 +254,120 @@ Show loading state until `isClient` true and `activeProvider` detected.
 
 ---
 
+## 6. Memory System & Semantic Search (`src/lib/memory-*`, `src/lib/db.ts`)
+
+**Architecture**: PGlite (SQLite fork) + pgvector for semantic search with automatic schema migrations.
+
+```typescript
+// Dual storage strategy:
+// - PGlite database: Semantic memories with 384-dim embeddings
+// - chrome.storage.local: Fast bookmark KV storage (500 item limit)
+
+// Memory schema (auto-migrated via V1 + V2):
+interface Memory {
+  id: string                    // UUID
+  content: string              // Full text content
+  embedding: number[]          // 384-dimensional vector (gte-small)
+  source: 'page' | 'summary' | 'manual'
+  sourceUrl?: string           // Page URL if available
+  savedAt: number              // Timestamp
+  tags?: string[]              // User-added tags
+}
+
+// Search pipeline (memory-search.ts):
+async search(query: string, limit = 10)
+  ├─ Embed query using Supabase/gte-small
+  ├─ Vector similarity search: pgvector `<->` operator (cosine distance)
+  └─ Hybrid: Combine semantic + keyword (ts_rank) results
+
+// Bookmark schema (lightweight KV):
+interface Bookmark {
+  id: string                    // UUID
+  url: string                   // Page URL
+  title: string                // Page title
+  excerpt?: string             // Text snippet
+  savedAt: number              // Timestamp
+}
+
+// Embedding generation (embeddings.ts):
+async generateEmbedding(text: string): Promise<number[]>
+  ├─ Use Supabase API (requires environment setup)
+  ├─ Fallback: Simple TF-IDF approximation if API unavailable
+  └─ Cache vectors to prevent re-computation
+```
+
+**When modifying memory**:
+- All memory operations go through `memory-storage.ts` (not direct DB access)
+- Run `initializeDatabase()` on app startup to handle migrations idempotently
+- Search results contain `similarity_score` for ranking
+- Don't persist images in memory (privacy) - only text content
+- Use `toast.loading()` + `toast.success()` pattern for user feedback
+
+**Key functions**:
+- `memory-storage.ts`: `saveMemory()`, `deleteMemory()`, `getMemories()`
+- `memory-search.ts`: `searchMemories(query)` → hybrid results
+- `bookmark-storage.ts`: `saveBookmark()`, `deleteBookmark()`, `getBookmarks()`
+- `embeddings.ts`: `generateEmbedding(text)` → 384-dim vector
+- `db.ts`: Database initialization, migration orchestration
+
+### 7. Bookmarks System & Quick Access (`src/lib/bookmark-storage.ts`, `src/hooks/use-bookmarks.ts`)
+
+**Design**: Lightweight KV storage in `chrome.storage.local` for instant access without DB overhead.
+
+```typescript
+// Bookmark operations:
+saveBookmark(url, title, excerpt) → UUID + toast notification
+deleteBookmark(id) → Toast feedback
+convertToMemory(bookmarkId) → Moves to PGlite with embedding + semantic indexing
+
+// UI Integration:
+- Message-level bookmark button (msg-options menu)
+- Bookmark count badge in header
+- Bookmarks panel showing 10 most recent
+- Export as CSV for data portability
+- Bulk delete with confirmation
+```
+
+**When modifying bookmarks**:
+- Don't exceed 500 bookmarks (chrome.storage.local hard limit)
+- Bookmark→Memory conversion: Extract text, generate embedding, save to PGlite
+- Always show toast feedback for save/delete operations
+- Sort by `savedAt` descending (newest first)
+
+### 8. Integration Points with AI Features
+
+**Page Summarization → Save to Memory**:
+```typescript
+// Flow in src/background.ts + src/App.tsx:
+Right-click page → Summarize
+  → Chrome Summarizer API (or LLM fallback)
+  → Show summary in toast (with save option)
+  → User clicks save
+  → Call saveMemory(summary) → Embedding generated → Indexed
+  → Toast: "Saved to memories"
+```
+
+**Chat Message → Bookmark/Memory**:
+```typescript
+// In chat-message.tsx message options:
+User right-clicks AI response
+  → Options: Bookmark | Add to Memory | Copy
+  → Bookmark: Fast save to KV store (chrome.storage.local)
+  → Add to Memory: Full save with embedding (PGlite)
+```
+
+**Search Memory During Chat**:
+```typescript
+// Planned tool integration:
+Memory tool enables: /search <query>
+  → Query executed in PGlite
+  → Top-5 results injected as system context
+  → AI responds using memory context
+  → Enables knowledge-aware conversations
+```
+
+---
+
 ## 📦 Key Dependencies
 
 - **`@ai-sdk/react`**: Provides `useChat` hook - handles message state, streaming, error handling
@@ -265,6 +379,10 @@ Show loading state until `isClient` true and `activeProvider` detected.
 - **`highlight.js`**: Code syntax highlighting (replaced Shiki to reduce bundle by 330 modules)
 - **`react-markdown`**: Markdown rendering in chat messages
 - **`Chrome Summarizer API`**: Native browser API for optimized page summaries (built into Chrome 128+)
+- **`@electric-sql/pglite`**: SQLite fork with pgvector extension for semantic search
+- **`pgvector`**: PostgreSQL vector type for embeddings (runs in SQLite via PGlite)
+- **`sonner`**: Toast notification library for user feedback (loading, success, error states)
+- **`@supabase/gte-small-js`**: 384-dimensional embedding model for semantic search
 
 ---
 
@@ -280,6 +398,16 @@ Show loading state until `isClient` true and `activeProvider` detected.
 - **Screen capture**: `src/lib/screen-capture-utils.ts` → Desktop Capture API + frame extraction → `src/hooks/use-screen-capture.ts` hook → `src/App.tsx` integration
 - **Chat persistence**: `src/lib/chat-storage.ts` → CRUD operations with chrome.storage.local
 - **Multimodal input**: `src/lib/image-utils.ts` → Image to base64 conversion
+- **Memory system**: `src/lib/db.ts` → PGlite initialization + migrations
+  - `src/lib/memory-storage.ts` → Save/delete/retrieve memories with embeddings
+  - `src/lib/memory-search.ts` → Semantic + keyword hybrid search
+  - `src/hooks/use-memories.ts` → React hook for memory state management
+  - `src/components/ui/memory-panel.tsx` → Memory UI with search interface
+- **Bookmarks system**: `src/lib/bookmark-storage.ts` → KV operations with chrome.storage.local
+  - `src/hooks/use-bookmarks.ts` → React hook for bookmark state
+  - `src/components/ui/bookmarks-panel.tsx` → Bookmark list UI
+  - `src/components/ui/bookmark-button.tsx` → Message-level bookmark action
+- **Embeddings**: `src/lib/embeddings.ts` → Vector generation using Supabase/gte-small
 - **Build config**: `vite.config.ts` → `rollupOptions.input` for multi-entry builds
 - **Extension manifest**: `public/manifest.json` → permissions (including `desktopCapture`), CSP, content scripts
 
@@ -318,3 +446,23 @@ Components follow **shadcn/ui** patterns. When adding new UI:
 4. Add UI component to `src/components/ui/`
 5. Integrate with `useChats` hook for state management
 6. Ensure auto-save via `use-chat-persistence` hook
+
+### Adding New Memory/Knowledge Feature
+1. Define data interface in `src/types/chat.ts` (e.g., `Memory`, `Bookmark`)
+2. Implement storage operations in `src/lib/memory-storage.ts` or `src/lib/bookmark-storage.ts`
+3. Create custom hook in `src/hooks/use-memories.ts` or `src/hooks/use-bookmarks.ts`
+4. Add UI components:
+   - Panel view: `src/components/ui/memory-panel.tsx`
+   - Action buttons: Message options menu integration
+5. For semantic search: Call `searchMemories()` from `src/lib/memory-search.ts`
+6. For embeddings: Call `generateEmbedding()` from `src/lib/embeddings.ts` (requires Supabase API)
+7. Always show toast feedback for save/delete/search operations (using `sonner`)
+8. Handle migrations idempotently via `src/lib/db.ts` (add new version if schema changes)
+
+### Adding Memory-Aware AI Features
+1. After generating memory embedding, inject into system context before chat
+2. Use memory search results to augment AI context: `searchMemories(query) → top-5 results`
+3. Format memory results as system message or in prompt template
+4. Ensure privacy: Never send memory content to external APIs (local-only)
+5. Test with offline mode to verify zero external calls
+6. Show memory source attribution in UI (e.g., "From saved memory: [title]")

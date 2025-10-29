@@ -47,6 +47,7 @@ interface ChatPropsBase {
   isCapturingScreen?: boolean
   selectedTools?: ToolSelection
   onToolChange?: (toolId: string, enabled: boolean) => void
+  messageOptions?: ((message: Message) => Record<string, unknown>) | Record<string, unknown>
 }
 
 interface ChatPropsWithoutSuggestions extends ChatPropsBase {
@@ -85,6 +86,7 @@ export function Chat({
   isCapturingScreen = false,
   selectedTools,
   onToolChange,
+  messageOptions: externalMessageOptions,
 }: ChatProps) {
   const lastMessage = messages[messages.length - 1]
   const isEmpty = messages.length === 0
@@ -185,40 +187,55 @@ export function Chat({
   }, [stop, setMessages, messagesRef])
 
   const messageOptions = useCallback(
-    (message: Message) => ({
-      actions: onRateResponse ? (
-        <>
-          <div className="border-r pr-1">
-            <CopyButton
-              content={message.content}
-              copyMessage="Copied response to clipboard!"
-            />
-          </div>
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-6 w-6"
-            onClick={() => onRateResponse(message.id, "thumbs-up")}
-          >
-            <ThumbsUp className="h-4 w-4" />
-          </Button>
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-6 w-6"
-            onClick={() => onRateResponse(message.id, "thumbs-down")}
-          >
-            <ThumbsDown className="h-4 w-4" />
-          </Button>
-        </>
-      ) : (
-        <CopyButton
-          content={message.content}
-          copyMessage="Copied response to clipboard!"
-        />
-      ),
-    }),
-    [onRateResponse]
+    (message: Message) => {
+      const internalOptions = {
+        actions: onRateResponse ? (
+          <>
+            <div className="border-r pr-1">
+              <CopyButton
+                content={message.content}
+                copyMessage="Copied response to clipboard!"
+              />
+            </div>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-6 w-6"
+              onClick={() => onRateResponse(message.id, "thumbs-up")}
+            >
+              <ThumbsUp className="h-4 w-4" />
+            </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-6 w-6"
+              onClick={() => onRateResponse(message.id, "thumbs-down")}
+            >
+              <ThumbsDown className="h-4 w-4" />
+            </Button>
+          </>
+        ) : (
+          <CopyButton
+            content={message.content}
+            copyMessage="Copied response to clipboard!"
+          />
+        ),
+      }
+
+      // Merge with external messageOptions if provided
+      if (externalMessageOptions) {
+        const externalOptions = typeof externalMessageOptions === 'function'
+          ? externalMessageOptions(message)
+          : externalMessageOptions
+        return {
+          ...internalOptions,
+          ...externalOptions,
+        }
+      }
+
+      return internalOptions
+    },
+    [onRateResponse, externalMessageOptions]
   )
 
   return (
