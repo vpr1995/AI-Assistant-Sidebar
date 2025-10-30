@@ -18,6 +18,9 @@ This Chrome extension is a **production-ready** local AI assistant with the foll
 -   **✨ NEW: Memories System**: Persistent, searchable, semantic knowledge base with embeddings
 -   **✨ NEW: Bookmarks**: Quick-save important messages with tags and metadata
 -   **✨ NEW: Memory Tool**: Explicit AI tool for semantic search of saved memories
+-   **✨ NEW: Export Conversations**: Export individual chats as JSON files
+-   **✨ NEW: Onboarding System**: Guided first-time user experience
+-   **✨ NEW: Help & Documentation**: In-app help page with feature explanations
 
 ## Triple-Provider AI System
 
@@ -120,6 +123,26 @@ All providers support streaming responses with real-time typing animation. Tool 
 -   **Statistics**: Memory counts, tag cloud, category breakdown
 -   **Memory Tool**: Explicit AI tool for AI to search memories during conversations
 
+### ✅ Export Conversations (NEW)
+-   **Individual Chat Export**: Export any chat as JSON file from chat list
+-   **Hover Action**: Export button appears beside delete button on chat hover
+-   **Filename**: Chat title with invalid characters sanitized
+-   **JSON Structure**: Complete chat data with metadata and timestamp
+-   **Toast Feedback**: Success/error notifications
+
+### ✅ Onboarding System (NEW)
+-   **Guided Experience**: Step-by-step introduction for new users
+-   **Modal Interface**: Non-intrusive overlay with progress tracking
+-   **Skip Option**: Allow users to skip onboarding
+-   **Persistent State**: Tracks completion status
+-   **Contextual Steps**: Introduces key features progressively
+
+### ✅ Help & Documentation (NEW)
+-   **In-App Help**: Comprehensive help page accessible from settings
+-   **Feature Explanations**: Detailed descriptions of all capabilities
+-   **Usage Instructions**: How-to guides for each feature
+-   **Troubleshooting**: Common issues and solutions
+
 ### ✅ Page Summary Memory (NEW)
 -   Right-click context menu: "Save page summary to memories"
 -   Complete flow:
@@ -144,11 +167,14 @@ All providers support streaming responses with real-time typing animation. Tool 
 -   **✨ NEW: Bookmarks Panel Button** (Bookmark icon) in header
 -   **✨ NEW: Toast Notifications** for user feedback during operations
 -   **✨ NEW: Bookmark Button** on all assistant messages (hover action)
+-   **✨ NEW: Export Button** on chat list items (hover action)
+-   **✨ NEW: Onboarding Modal** for first-time users
+-   **✨ NEW: Help Page** accessible from settings menu
 
 ## Key Files
 
 ### Core Application
--   `src/App.tsx` - Main application with chat logic, panels, memory integration
+-   `src/App.tsx` - Main application with chat logic, panels, memory integration, export functionality
 -   `src/main.tsx` - React entry point with theme provider
 -   `src/background.ts` - Service worker with expanded context menus (bookmark, memory save, page summary)
 -   `src/content.ts` - Content script for extraction
@@ -169,6 +195,18 @@ All providers support streaming responses with real-time typing animation. Tool 
 -   `src/lib/memory-search.ts` - Semantic + keyword search pipeline
 -   `src/lib/bookmark-storage.ts` - Bookmark CRUD operations
 -   `src/types/memory.ts` - Memory and Bookmark type definitions
+
+### Onboarding System (NEW)
+-   `src/hooks/use-onboarding.ts` - Onboarding state management
+-   `src/lib/onboarding-steps.ts` - Step definitions and content
+-   `src/lib/onboarding-storage.ts` - Completion status persistence
+-   `src/types/onboarding.ts` - Type definitions
+-   `src/components/ui/onboarding-modal.tsx` - Main modal component
+-   `src/components/ui/onboarding-overlay.tsx` - Overlay wrapper
+
+### Help System (NEW)
+-   `src/components/ui/help-page.tsx` - Comprehensive help documentation
+-   `src/components/ui/interactive-tooltip.tsx` - Interactive help elements
 
 ### AI Tools
 -   `src/lib/tools/registry.ts` - Tool registration and management
@@ -193,17 +231,24 @@ All providers support streaming responses with real-time typing animation. Tool 
 -   `src/hooks/use-screen-capture.ts` - Desktop capture
 -   `src/hooks/use-memories.ts` - **NEW: Memory state management**
 -   `src/hooks/use-bookmarks.ts` - **NEW: Bookmark state management**
+-   `src/hooks/use-onboarding.ts` - **NEW: Onboarding state management**
 
 ### UI Components
 -   `src/components/ui/chat.tsx` - Chat component with message options
 -   `src/components/ui/message-input.tsx` - Input with tool picker
 -   `src/components/ui/tool-picker.tsx` - Tool selection
 -   `src/components/ui/chat-message.tsx` - Message with bookmark button
--   `src/components/ui/app-header.tsx` - **UPDATED: Panel toggle buttons**
+-   `src/components/ui/app-header.tsx` - **UPDATED: Panel toggle buttons, removed export button**
+-   `src/components/ui/chat-list-item.tsx` - **UPDATED: Added export button on hover**
+-   `src/components/ui/chat-sidebar.tsx` - **UPDATED: Export chat prop**
 -   `src/components/ui/memory-panel.tsx` - **NEW: Memory search UI**
 -   `src/components/ui/bookmarks-panel.tsx` - **NEW: Bookmarks management UI**
 -   `src/components/ui/bookmark-button.tsx` - **NEW: Message bookmark button**
 -   `src/components/ui/sonner.tsx` - Toast notification component
+-   `src/components/ui/onboarding-modal.tsx` - **NEW: Onboarding modal**
+-   `src/components/ui/onboarding-overlay.tsx` - **NEW: Onboarding overlay**
+-   `src/components/ui/help-page.tsx` - **NEW: Help documentation**
+-   `src/components/ui/interactive-tooltip.tsx` - **NEW: Interactive help elements**
 
 ## Build Information
 
@@ -251,6 +296,9 @@ All features tested and working:
 -   ✅ **✨ NEW: Convert bookmarks to memories**
 -   ✅ **✨ NEW: Progress toasts during summarization**
 -   ✅ **✨ NEW: URL preservation and display**
+-   ✅ **✨ NEW: Export individual chats from chat list**
+-   ✅ **✨ NEW: Onboarding system for new users**
+-   ✅ **✨ NEW: In-app help and documentation**
 
 ## Known Limitations
 
@@ -280,6 +328,9 @@ All features tested and working:
 -   **✨ NEW: Semantic Search**: Vector embeddings for memories
 -   **✨ NEW: Dual Storage**: PGlite (memories) + chrome.storage.local (bookmarks)
 -   **✨ NEW: Progressive Enhancement**: Works without memories/bookmarks
+-   **✨ NEW: Export Functionality**: JSON export for conversations
+-   **✨ NEW: Onboarding Experience**: Guided user introduction
+-   **✨ NEW: Help System**: Comprehensive in-app documentation
 
 ## Current Status
 
@@ -297,10 +348,16 @@ All features tested and working:
 -   ✅ Memory Panel UI
 -   ✅ Bookmarks Panel UI
 -   ✅ Bookmark Button on Messages
+-   ✅ Export Conversations from Chat List
+-   ✅ Onboarding System
+-   ✅ Help & Documentation
 
-**22 files modified/created in latest session:**
-- 14 new files (database, storage, hooks, components, tools)
-- 8 existing files updated (App, background, types, etc.)
+**Recent Changes (Export + Onboarding)**:
+- 8 new files added (onboarding, help, tooltip components)
+- 7 existing files updated (App.tsx, chat components, header)
+- Export button moved from header to chat list hover actions
+- Added onboarding modal with step-by-step guidance
+- Added comprehensive help page
 - 0 build errors, all features verified working
 
 For detailed information:
@@ -308,3 +365,5 @@ For detailed information:
 - `ai-tools-implementation` — Tools architecture
 - `advanced-features` — Chat persistence details
 - `screen-capture-feature-implementation` — Desktop capture details
+- `ui-ux-improvements-consolidated` — UI enhancements</content>
+<parameter name="memory_name">current_implementation_status

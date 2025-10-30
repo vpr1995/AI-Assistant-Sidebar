@@ -205,6 +205,7 @@ export function MessageInput({
             placeholder={placeholder}
             ref={textAreaRef}
             onKeyDown={onKeyDown}
+            id="message-input-textarea"
             className={cn(
               "z-10 w-full grow resize-none bg-transparent p-3 text-sm ring-offset-background transition-[border] placeholder:text-muted-foreground focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50",
               // keep any extra classes provided by callers applied to the outer container
@@ -251,6 +252,7 @@ export function MessageInput({
                   className="h-8 w-8"
                   aria-label="Attach image"
                   size="icon"
+                  id="image-upload-button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isLoadingImage || isGenerating}
                   title="Attach image (Built-in AI only)"
@@ -275,10 +277,12 @@ export function MessageInput({
 
           <div className="flex items-center gap-2">
             {selectedTools && onToolChange && preferredProvider === 'built-in-ai' && (
-              <ToolPicker
-                selectedTools={selectedTools}
-                onToolChange={onToolChange}
-              />
+              <div id="tools-button">
+                <ToolPicker
+                  selectedTools={selectedTools}
+                  onToolChange={onToolChange}
+                />
+              </div>
             )}
             {isSpeechSupported && (
               <Button
@@ -287,6 +291,7 @@ export function MessageInput({
                 className={cn("h-8 w-8", isListening && !isGenerating && "text-primary")}
                 aria-label="Voice input"
                 size="icon"
+                id="voice-button"
                 onClick={toggleListening}
                 disabled={isGenerating}
                 title={isGenerating ? "Voice input disabled while generating" : "Voice input"}
@@ -310,6 +315,7 @@ export function MessageInput({
                 size="icon"
                 className="h-8 w-8 transition-opacity"
                 aria-label="Send message"
+                id="send-button"
                 disabled={props.value === "" || isGenerating}
               >
                 <ArrowUp className="h-5 w-5" />

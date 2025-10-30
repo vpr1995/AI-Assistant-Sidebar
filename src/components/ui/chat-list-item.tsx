@@ -4,7 +4,7 @@
  */
 
 import { useState } from 'react'
-import { Trash2 } from 'lucide-react'
+import { Trash2, Download } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import type { ChatListItem } from '@/types/chat'
@@ -14,6 +14,7 @@ interface ChatListItemProps {
   isSelected: boolean
   onSelect: (chatId: string) => void
   onDelete: (chatId: string) => void
+  onExport?: (chatId: string) => void
 }
 
 /**
@@ -35,7 +36,7 @@ function formatTime(timestamp: number): string {
   return date.toLocaleDateString()
 }
 
-export function ChatListItemComponent({ chat, isSelected, onSelect, onDelete }: ChatListItemProps) {
+export function ChatListItemComponent({ chat, isSelected, onSelect, onDelete, onExport }: ChatListItemProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
 
@@ -74,25 +75,47 @@ export function ChatListItemComponent({ chat, isSelected, onSelect, onDelete }: 
             </p>
           </div>
 
-          {/* Delete Button - Show on hover */}
+          {/* Action Buttons - Show on hover */}
           {isHovered && !showDeleteConfirm && (
-            <motion.button
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.8 }}
-              onClick={(e) => {
-                e.stopPropagation()
-                setShowDeleteConfirm(true)
-              }}
-              className={cn(
-                'p-1 rounded hover:bg-destructive/20 hover:text-destructive',
-                'transition-colors duration-200',
-                'flex-shrink-0'
+            <div className="flex gap-1 flex-shrink-0">
+              {/* Export Button */}
+              {onExport && (
+                <motion.button
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.8 }}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onExport(chat.id)
+                  }}
+                  className={cn(
+                    'p-1 rounded hover:bg-accent/20 hover:text-accent-foreground',
+                    'transition-colors duration-200'
+                  )}
+                  aria-label="Export chat"
+                >
+                  <Download className="h-4 w-4" />
+                </motion.button>
               )}
-              aria-label="Delete chat"
-            >
-              <Trash2 className="h-4 w-4" />
-            </motion.button>
+
+              {/* Delete Button */}
+              <motion.button
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setShowDeleteConfirm(true)
+                }}
+                className={cn(
+                  'p-1 rounded hover:bg-destructive/20 hover:text-destructive',
+                  'transition-colors duration-200'
+                )}
+                aria-label="Delete chat"
+              >
+                <Trash2 className="h-4 w-4" />
+              </motion.button>
+            </div>
           )}
         </div>
 

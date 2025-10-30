@@ -5,6 +5,8 @@ import { useThemeContext } from '@/hooks/use-theme-context'
 import { cn } from '@/lib/utils'
 import { getSummarizerPreference, setSummarizerPreference, type SummarizerPreference } from '@/lib/settings-storage'
 import { checkChromeSummarizerAvailability } from '@/lib/summarizer-utils'
+import HelpPage from './help-page'
+import pkg from '../../../package.json'
 
 type Theme = 'light' | 'dark' | 'system'
 
@@ -15,6 +17,7 @@ interface MenuPosition {
 
 export function SettingsMenu() {
   const [isOpen, setIsOpen] = useState(false)
+  const [showHelp, setShowHelp] = useState(false)
   const [menuPosition, setMenuPosition] = useState<MenuPosition>({ top: 0, right: 0 })
   const [summarizerPreference, setSummarizerPreferenceState] = useState<SummarizerPreference>('built-in')
   const [isBuiltInAvailable, setIsBuiltInAvailable] = useState(false)
@@ -99,6 +102,7 @@ export function SettingsMenu() {
       {/* Settings Button */}
       <button
         ref={buttonRef}
+        id="settings-button"
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
           'h-8 w-8 p-0 rounded-md flex items-center justify-center',
@@ -278,7 +282,27 @@ export function SettingsMenu() {
                     </motion.div>
                   )}
                 </AnimatePresence>
+
+                {/* Help / Docs */}
+                <div>
+                  <button
+                    onClick={() => {
+                      setIsOpen(false)
+                      setShowHelp(true)
+                    }}
+                    className="w-full flex items-center gap-3 px-2 py-3 rounded-lg bg-accent/5 hover:bg-accent/10 transition-colors text-left"
+                    aria-label="Open help and documentation"
+                  >
+                    <div className="text-sm font-medium">Help & Docs</div>
+                    <span className="ml-auto text-xs text-muted-foreground">Open</span>
+                  </button>
+                </div>
               </div>
+            </div>
+            {/* Version footer */}
+            <div className="px-4 pb-3 pt-0 border-t border-border/50 text-xs text-muted-foreground flex items-center justify-between">
+              <span>Version</span>
+              <span className="font-mono text-xs">{pkg.version}</span>
             </div>
           </motion.div>
         )}
@@ -296,6 +320,8 @@ export function SettingsMenu() {
           />
         )}
       </AnimatePresence>
+      {/* Help modal */}
+      <HelpPage isOpen={showHelp} onClose={() => setShowHelp(false)} />
     </div>
   )
 }

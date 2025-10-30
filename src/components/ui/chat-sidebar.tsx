@@ -16,6 +16,7 @@ interface ChatSidebarProps {
   onNewChat: () => void
   onSelectChat: (chatId: string) => void
   onDeleteChat: (chatId: string) => void
+  onExportChat?: (chatId: string) => void
 }
 
 export function ChatSidebar({
@@ -25,6 +26,7 @@ export function ChatSidebar({
   onNewChat,
   onSelectChat,
   onDeleteChat,
+  onExportChat,
 }: ChatSidebarProps) {
   return (
     <div className="h-full flex flex-col bg-background border-r border-border">
@@ -60,6 +62,7 @@ export function ChatSidebar({
                   isSelected={selectedChatId === chat.id}
                   onSelect={onSelectChat}
                   onDelete={onDeleteChat}
+                  onExport={onExportChat}
                 />
               ))}
             </div>

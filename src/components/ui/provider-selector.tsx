@@ -51,7 +51,7 @@ export function ProviderSelector({
   return (
     <div className={cn("flex items-center", className)}>
       <select
-        id="provider-select"
+        id="provider-selector"
         value={value}
         onChange={(e) =>
           onChange(e.target.value as "built-in-ai" | "web-llm" | "transformers-js" | "auto")

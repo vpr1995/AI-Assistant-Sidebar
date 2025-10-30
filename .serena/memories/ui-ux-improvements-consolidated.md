@@ -1,218 +1,394 @@
-# UI/UX Improvements
+# UI/UX Improvements Consolidated
 
-This document covers UI and UX enhancements implemented in the extension, including the theme system, multi-chat sidebar, model selector repositioning, and download progress tracking.
+## Overview
 
-## Theme System
+This document tracks all UI/UX enhancements made to the Chrome extension, focusing on user experience improvements, accessibility, and modern design patterns.
 
-A complete theme system with three modes and smooth animations.
+## Core UI Principles
 
-### Features
--   **Three Modes**: Light, Dark, and System (follows OS preference)
--   **Smooth Animations**: Framer Motion-powered transitions
--   **Persistent Preference**: Saved to localStorage
--   **Real-time OS Detection**: Updates when system theme changes
--   **Spring Animations**: Natural, bouncy transitions for UI elements
+- **Minimalist Design**: Clean interfaces with purposeful elements
+- **Progressive Disclosure**: Features revealed contextually (hover, focus)
+- **Consistent Interactions**: Standardized hover states, animations, feedback
+- **Accessibility**: Keyboard navigation, screen reader support, high contrast
+- **Performance**: Smooth animations, lazy loading, efficient re-renders
 
-### Implementation
--   **`src/hooks/use-theme.ts`**: Core theme logic
-    -   Manages theme state (light/dark/system)
-    -   Persists to localStorage with key `'theme-preference'`
-    -   Detects system preference via `matchMedia('(prefers-color-scheme: dark)')`
-    -   Listens for OS theme changes
-    -   Applies theme by toggling `dark` class on `document.documentElement`
+## Header Improvements
 
--   **`src/components/ui/theme-provider.tsx`**: Context provider
-    -   Wraps application with theme context
-    -   Provides theme state to all child components
-    -   Integrates `use-theme` hook
+### App Header (`src/components/ui/app-header.tsx`)
 
--   **`src/components/ui/theme-context.ts`**: Context definition
-    -   Defines `ThemeContext` and `ThemeContextType`
-    -   Separate file to fix ESLint Fast Refresh rules
+**Current State**:
+- **Left Side**: Theme toggle (Light/Dark/System) + Memory panel toggle (🧠) + Bookmarks panel toggle (🔖)
+- **Right Side**: Settings menu (⚙️) with dropdown
+- **Removed**: Export button (moved to chat list for better UX)
 
--   **`src/hooks/use-theme-context.tsx`**: Context hook
-    -   Safe, typed hook to access theme context
-    -   Throws error if used outside ThemeProvider
+**Key Features**:
+- **Theme Toggle**: Three-mode selector with smooth transitions
+- **Panel Toggles**: Memory and bookmarks panels with badge counts
+- **Settings Menu**: Dropdown with chat reset, help page, onboarding restart
+- **Responsive**: Collapses gracefully on smaller screens
+- **Accessibility**: Proper ARIA labels, keyboard navigation
 
-### User Experience
--   **Header Button Group**: Sun ☀️ / Moon 🌙 / Monitor 🖥️ icons
--   **Active Indicator**: Animated background slide between active button
--   **Icon Animation**: Scale effect (1.0 → 1.1) on selection
--   **Color Transition**: Smooth text color fade
+**Recent Changes**:
+- ✅ Removed export button (relocated to chat list hover actions)
+- ✅ Added memory panel toggle with brain icon
+- ✅ Added bookmarks panel toggle with bookmark icon
+- ✅ Added settings dropdown with help and onboarding options
 
-## Multi-Chat Sidebar
+### Settings Menu
 
-A comprehensive chat management system with persistent storage.
+**Dropdown Options**:
+- **Reset All Chats**: Confirmation dialog before clearing all data
+- **Help & Documentation**: Opens comprehensive help page
+- **Restart Onboarding**: Re-triggers onboarding modal
+- **Theme Selector**: Quick theme switch (Light/Dark/System)
 
-### Features
--   **Multiple Chats**: Create unlimited chat sessions
--   **Persistent History**: All chats saved to localStorage
--   **Inline Title Editing**: Click to edit chat names
--   **Chat List**: Sidebar showing all chats with timestamps
--   **Active Indicator**: Highlights current chat
--   **Delete Chats**: Remove unwanted conversations
--   **New Chat Dialog**: Modal for creating new chats
+## Chat Interface Improvements
 
-### Implementation
--   **`src/hooks/use-chats.ts`**: Chat state management
-    -   CRUD operations (create, read, update, delete)
-    -   Active chat tracking
-    -   Persists to localStorage
+### Chat List Sidebar (`src/components/ui/chat-sidebar.tsx`)
 
--   **`src/lib/chat-storage.ts`**: Storage layer
-    -   Save/load chats from localStorage
-    -   Key: `'chrome-ai-chats'`
-    -   JSON serialization
+**Current State**:
+- **Layout**: Scrollable list with new chat button at top
+- **Interactions**: Hover reveals action buttons (export, delete)
+- **Visual Feedback**: Active chat highlighting, hover states
+- **Performance**: Virtualized rendering for large lists
 
--   **`src/lib/chat-helpers.ts`**: Utility functions
-    -   `createNewChat()` - Generate new chat with timestamp
-    -   `generateChatId()` - Unique ID generation
-    -   `formatChatTimestamp()` - Human-readable timestamps
+**Key Features**:
+- **New Chat Button**: Prominent placement at top with plus icon
+- **Chat Items**: Title, preview, timestamp, action buttons
+- **Export Integration**: Export button appears on hover beside delete
+- **Delete Confirmation**: Toast confirmation for safety
+- **Auto-Scroll**: Maintains scroll position during updates
 
--   **`src/components/ui/chat-sidebar.tsx`**: Sidebar UI
-    -   Collapsible chat list
-    -   New chat button
-    -   Chat selection and deletion
+**Recent Changes**:
+- ✅ Added `onExportChat` prop for individual chat export
+- ✅ Improved hover states for action buttons
+- ✅ Better spacing and visual hierarchy
 
--   **`src/components/ui/chat-list-item.tsx`**: Individual chat item
-    -   Click to switch chats
-    -   Delete button with confirmation
-    -   Active state styling
+### Chat List Item (`src/components/ui/chat-list-item.tsx`)
 
--   **`src/components/ui/chat-header.tsx`**: Chat session header
-    -   Displays chat title
-    -   Inline editing with double-click
-    -   Auto-save on blur
+**Current State**:
+- **Layout**: Title + preview + timestamp + action buttons
+- **Hover Actions**: Export and delete buttons appear on hover
+- **Visual States**: Active state, hover state, focus state
+- **Animations**: Smooth transitions for button reveals
 
-### User Experience
--   **Seamless Switching**: Instant chat switching with state preservation
--   **Auto-save**: All messages automatically saved
--   **Persistent**: Chats survive page reloads and browser restarts
--   **Visual Feedback**: Active chat highlighted in sidebar
+**Key Features**:
+- **Export Button**: Download icon, triggers JSON export
+- **Delete Button**: Trash icon, confirmation required
+- **Title Editing**: Inline editing with save/cancel
+- **Preview Generation**: Auto-generated from first message
+- **Timestamp Display**: Relative time ("2 hours ago")
 
-## Provider Selector Repositioning
+**Recent Changes**:
+- ✅ Added export button with hover animation
+- ✅ Positioned beside delete button for logical grouping
+- ✅ Added proper ARIA labels and keyboard support
 
-Moved AI provider selector from header to message input area.
+### Chat Message (`src/components/ui/chat-message.tsx`)
 
-### Changes
--   **Before**: Header had `[Status] [Provider ▼] [Settings]` (crowded)
--   **After**: Header has `[Status] [Settings]` (clean)
--   **Provider Selector**: Now in message input controls area
+**Current State**:
+- **Layout**: Avatar + content + actions (hover)
+- **Content**: Markdown rendering with syntax highlighting
+- **Actions**: Copy button, bookmark button (assistant messages only)
+- **Animations**: Typing indicator, smooth expansions
 
-### Benefits
--   **Cleaner Header**: More visual space, less clutter
--   **Contextual Placement**: Provider selection near where you compose messages
--   **Better Flow**: Natural position before sending message
--   **File Attachment Removed**: Simplified interface (paperclip button removed)
+**Key Features**:
+- **Copy Button**: One-click copy to clipboard with toast feedback
+- **Bookmark Button**: Quick-save to bookmarks with star icon
+- **Message Options**: Dropdown menu for additional actions
+- **Code Blocks**: Syntax highlighting with copy buttons
+- **Image Display**: Responsive image previews
 
-### Implementation
--   **`src/App.tsx`**: Removed ProviderSelector from header, passes props to Chat
--   **`src/components/ui/chat.tsx`**: Receives and forwards provider props
--   **`src/components/ui/message-input.tsx`**: Renders ProviderSelector in controls
-    -   Button order: `[Provider ▼] [🎤 Mic] [📤 Send]`
+**Recent Changes**:
+- ✅ Added bookmark button for assistant messages
+- ✅ Improved hover states and animations
+- ✅ Better accessibility with proper focus management
 
-## Download Progress Dialog
+## Panel System Improvements
 
-Modal popup showing real-time model download progress.
+### Memory Panel (`src/components/ui/memory-panel.tsx`)
 
-### Features
--   **Progress Bar**: Animated width with percentage (0-100%)
--   **Status Messages**: "Downloading model..." / "Extracting model..." / "Done!"
--   **Spinner Animation**: Rotating loader icon (Lucide `Loader2`)
--   **Auto-dismiss**: Closes 1 second after reaching 100%
--   **Non-blocking**: Semi-transparent overlay with backdrop blur
--   **Framer Motion**: Smooth enter/exit animations
+**Current State**:
+- **Layout**: Search input + results list + statistics
+- **Search**: Real-time semantic search with relevance scores
+- **Results**: Expandable items with source attribution
+- **Statistics**: Tag cloud, category breakdown, counts
 
-### Implementation
--   **`src/components/ui/download-progress-dialog.tsx`**: Dialog component
-    -   Props: `isOpen`, `status`, `progress`, `message`
-    -   Animated with Framer Motion
-    -   Dark mode support
+**Key Features**:
+- **Semantic Search**: Vector similarity search
+- **Keyword Fallback**: Text search when embeddings unavailable
+- **Source Display**: URL and chat attribution
+- **Tag Management**: Filter by tags, add/remove tags
+- **Category Icons**: Visual indicators for memory types
 
--   **`src/hooks/use-model-download-progress.ts`**: Progress tracking hook
-    -   Registers callback with transport layer
-    -   Manages progress state
-    -   Triggers auto-dismiss
+**Recent Changes**:
+- ✅ Added comprehensive search interface
+- ✅ Implemented expandable result items
+- ✅ Added statistics and tag cloud
+- ✅ Integrated with memory tool for AI search
 
--   **Callback Architecture**: Transport layer emits progress updates
-    -   First call: `{ status: 'downloading', progress: 0, message: '...' }`
-    -   Ongoing: `{ status: 'downloading', progress: 45, message: '...' }`
-    -   Complete: `{ status: 'complete', progress: 100, message: 'Done!' }`
+### Bookmarks Panel (`src/components/ui/bookmarks-panel.tsx`)
 
-### User Experience
--   **Automatic**: Appears when model download starts
--   **Informative**: Shows exact progress percentage
--   **Non-intrusive**: Doesn't block UI interaction
--   **Visual Feedback**: Clear indication of download status
+**Current State**:
+- **Layout**: Search/filter + bookmarks list + actions
+- **Search**: Content search with tag filtering
+- **Management**: Edit, delete, convert to memories
+- **Statistics**: Per-chat counts, tag usage
 
-## Provider Status Banners
+**Key Features**:
+- **Quick Actions**: Bookmark/delete with confirmation
+- **Tag System**: Add tags, filter by tags
+- **Memory Conversion**: "Save to Memories" button
+- **Preview Mode**: Collapsed/expanded views
+- **Bulk Operations**: Select multiple for batch actions
 
-Informational banners that appear in the header to notify users about provider-specific information.
+**Recent Changes**:
+- ✅ Added full bookmark management interface
+- ✅ Implemented tag filtering and search
+- ✅ Added memory conversion functionality
+- ✅ Added statistics and usage insights
 
-### Features
--   **WebLLM Banner**: Shows when WebLLM is active
-    -   Message: "Using WebLLM with local model. First response may take longer..."
-    -   Dismissible with X button
-    -   Blue info styling
+## Input & Interaction Improvements
 
--   **Transformers.js Banner**: Shows when Transformers.js is active
-    -   Similar message about potential latency
-    -   Dismissible
-    -   Session-based (reappears on reload)
+### Message Input (`src/components/ui/message-input.tsx`)
 
-### Implementation
--   **`src/components/ui/provider-status-banners.tsx`**: Banner components
--   **`src/App.tsx`**: Manages visibility state
-    -   `dismissedWebLLMInfo` state
-    -   Conditional rendering based on `activeProvider`
+**Current State**:
+- **Layout**: Textarea + buttons + provider selector
+- **Features**: Auto-resize, voice input, image upload
+- **Buttons**: Send, voice, image, tools, provider selector
+- **Validation**: Character limits, file size checks
 
-## Voice Input UI
+**Key Features**:
+- **Auto-Resize**: Grows with content, max height limit
+- **Voice Integration**: Microphone button with permission handling
+- **Image Upload**: Drag/drop + click, preview display
+- **Tool Picker**: Settings icon opens tool selection
+- **Provider Selector**: Dropdown for AI provider choice
 
-Visual components for speech-to-text functionality.
+**Recent Changes**:
+- ✅ Improved button layout and spacing
+- ✅ Added tool picker integration
+- ✅ Better responsive design for mobile
 
-### Features
--   **Microphone Button**: Click to start/stop recording
--   **Audio Visualizer**: Waveform animation during recording
--   **Permission Handling**: Iframe-based permission request
--   **Visual Feedback**: Button changes color when active
+### Tool Picker (`src/components/ui/tool-picker.tsx`)
 
-### Implementation
--   **`src/components/ui/audio-visualizer.tsx`**: Waveform visualization
-    -   Canvas-based animation
-    -   Real-time audio level display
+**Current State**:
+- **Layout**: Grid of tool toggles with descriptions
+- **Interactions**: Click to enable/disable tools
+- **Persistence**: Saves selection to chrome.storage.local
+- **Feedback**: Visual indicators for enabled tools
 
--   **Microphone Button**: In message input controls
-    -   Toggles recording state
-    -   Shows recording indicator
+**Key Features**:
+- **Tool Registry**: Dynamic loading of available tools
+- **Descriptions**: Helpful explanations for each tool
+- **Categories**: Grouped by functionality
+- **State Persistence**: Remembers user preferences
 
-## Settings Menu
+**Recent Changes**:
+- ✅ Added memory tool and web search tool
+- ✅ Improved descriptions and icons
+- ✅ Better grid layout and spacing
 
-Dropdown menu for user preferences and actions.
+## Onboarding & Help System
 
-### Features
--   **Theme Selector**: Radio buttons for Light/Dark/System
--   **Reset Chat**: Button to clear current chat
--   **Animated Dropdown**: Spring physics animation
--   **Keyboard Navigation**: Arrow keys and Enter support
+### Onboarding Modal (`src/components/ui/onboarding-modal.tsx`)
 
-### Implementation
--   **`src/components/ui/settings-menu.tsx`**: Settings dropdown
-    -   Gear icon button
-    -   Animated menu with Framer Motion
-    -   Theme options with checkmarks
-    -   Reset button with confirmation
+**Current State**:
+- **Layout**: Step-by-step modal with progress indicator
+- **Content**: Interactive tutorials for key features
+- **Navigation**: Next/previous/skip buttons
+- **Persistence**: Tracks completion status
 
-### User Experience
--   **Accessible**: Keyboard and screen reader support
--   **Visual**: Checkmark shows active theme
--   **Smooth**: Spring animations for natural feel
+**Key Features**:
+- **Progressive Disclosure**: Introduces features gradually
+- **Interactive Elements**: Highlight UI components
+- **Skip Option**: Allows users to bypass onboarding
+- **Restartable**: Can be re-triggered from settings
 
-## Overall UX Principles
+**Recent Changes**:
+- ✅ Implemented complete onboarding flow
+- ✅ Added step-by-step feature introductions
+- ✅ Integrated with settings menu
 
--   **Contextual Placement**: Controls near related actions
--   **Visual Feedback**: Animations and indicators for user actions
--   **Persistence**: User preferences saved and restored
--   **Accessibility**: Keyboard navigation and ARIA labels
--   **Performance**: Smooth 60fps animations
--   **Dark Mode**: Full support across all components
--   **Mobile-Ready**: Responsive layouts (though designed for desktop sidebar)
+### Onboarding Overlay (`src/components/ui/onboarding-overlay.tsx`)
+
+**Current State**:
+- **Layout**: Semi-transparent overlay with highlighted elements
+- **Animations**: Smooth transitions between steps
+- **Interactions**: Click targets to advance
+- **Accessibility**: Screen reader announcements
+
+**Key Features**:
+- **Element Highlighting**: Focuses attention on UI elements
+- **Tooltip Guidance**: Contextual instructions
+- **Progress Tracking**: Visual progress bar
+- **Non-Intrusive**: Can be dismissed easily
+
+**Recent Changes**:
+- ✅ Added overlay highlighting system
+- ✅ Implemented smooth animations
+- ✅ Added accessibility features
+
+### Help Page (`src/components/ui/help-page.tsx`)
+
+**Current State**:
+- **Layout**: Comprehensive documentation with sections
+- **Content**: Feature explanations, usage guides, troubleshooting
+- **Navigation**: Table of contents, search functionality
+- **Accessibility**: Semantic HTML, keyboard navigation
+
+**Key Features**:
+- **Feature Documentation**: Detailed explanations of all capabilities
+- **Usage Instructions**: Step-by-step guides
+- **Troubleshooting**: Common issues and solutions
+- **Search**: Find relevant help content quickly
+
+**Recent Changes**:
+- ✅ Added comprehensive help documentation
+- ✅ Implemented searchable content
+- ✅ Added troubleshooting section
+
+### Interactive Tooltip (`src/components/ui/interactive-tooltip.tsx`)
+
+**Current State**:
+- **Layout**: Contextual help bubbles with rich content
+- **Triggers**: Hover, focus, or click events
+- **Content**: Text, images, links, interactive elements
+- **Animations**: Smooth show/hide transitions
+
+**Key Features**:
+- **Rich Content**: Support for formatted text and media
+- **Interactive**: Can contain buttons and links
+- **Positioning**: Smart positioning to stay in viewport
+- **Accessibility**: Proper ARIA attributes
+
+**Recent Changes**:
+- ✅ Added interactive tooltip system
+- ✅ Implemented rich content support
+- ✅ Added smart positioning logic
+
+## Animation & Feedback Improvements
+
+### Toast Notifications (`src/components/ui/sonner.tsx`)
+
+**Current State**:
+- **Types**: Success, error, info, warning
+- **Positions**: Top-right corner, stack multiple
+- **Animations**: Smooth slide-in/out
+- **Interactions**: Dismissible, auto-hide
+
+**Key Features**:
+- **Progress Feedback**: Loading states with progress indicators
+- **Action Buttons**: Optional action buttons in toasts
+- **Rich Content**: Support for icons and formatted text
+- **Queue Management**: Handles multiple simultaneous toasts
+
+**Recent Changes**:
+- ✅ Added comprehensive toast system
+- ✅ Implemented progress feedback for operations
+- ✅ Added action buttons for user interactions
+
+### Download Progress Dialog (`src/components/ui/download-progress-dialog.tsx`)
+
+**Current State**:
+- **Layout**: Modal with progress bar and status text
+- **States**: Downloading, extracting, complete
+- **Animations**: Smooth progress updates
+- **Auto-Dismiss**: Closes automatically after completion
+
+**Key Features**:
+- **Real-Time Updates**: Live progress from AI providers
+- **Status Messages**: Descriptive text for each phase
+- **Error Handling**: Shows errors with retry options
+- **User Control**: Cancel button during downloads
+
+**Recent Changes**:
+- ✅ Improved progress visualization
+- ✅ Added better error handling
+- ✅ Enhanced user feedback
+
+## Accessibility Improvements
+
+### Keyboard Navigation
+- **Tab Order**: Logical tab sequence through all interactive elements
+- **Focus Management**: Proper focus indicators and management
+- **Keyboard Shortcuts**: Common shortcuts (Ctrl+K for search, etc.)
+- **Screen Reader**: ARIA labels, roles, and announcements
+
+### Visual Accessibility
+- **High Contrast**: Supports high contrast mode
+- **Color Blindness**: Color-independent design patterns
+- **Font Scaling**: Respects system font size preferences
+- **Motion Preferences**: Respects reduced motion settings
+
+## Performance Optimizations
+
+### Rendering
+- **Memoization**: React.memo for expensive components
+- **Virtualization**: Virtual scrolling for large lists
+- **Lazy Loading**: Components loaded on demand
+- **Debouncing**: Input debouncing for search
+
+### Bundle Optimization
+- **Code Splitting**: Dynamic imports for large features
+- **Tree Shaking**: Unused code elimination
+- **Compression**: Gzip compression for assets
+- **Caching**: Browser caching strategies
+
+## Recent Major Changes
+
+### Export Functionality Relocation
+- **Before**: Export button in app header (cluttered interface)
+- **After**: Export button on chat list items (hover action)
+- **Benefits**: Cleaner header, contextual placement, better UX
+
+### Panel System Addition
+- **Memory Panel**: Semantic search interface with statistics
+- **Bookmarks Panel**: Bookmark management with conversion to memories
+- **Integration**: Header toggles with badge counts
+
+### Onboarding & Help System
+- **Onboarding Modal**: Guided first-time user experience
+- **Help Page**: Comprehensive in-app documentation
+- **Interactive Tooltips**: Contextual help throughout the UI
+
+### Toast Notification System
+- **Progress Feedback**: Real-time updates for long operations
+- **User Actions**: Confirmation and error handling
+- **Rich Content**: Icons, buttons, and formatted text
+
+## Testing & Validation
+
+### User Testing
+- **A/B Testing**: Compare interaction patterns
+- **Usability Studies**: Observe real user workflows
+- **Accessibility Audit**: Screen reader and keyboard testing
+
+### Performance Testing
+- **Load Testing**: Large chat histories and memory databases
+- **Memory Usage**: Monitor browser memory consumption
+- **Animation Performance**: 60fps animation targets
+
+### Cross-Browser Testing
+- **Chrome Versions**: 128+ for Built-in AI features
+- **Firefox Compatibility**: WebLLM and Transformers.js fallbacks
+- **Mobile Browsers**: Responsive design validation
+
+## Future Improvements
+
+### Planned Enhancements
+- **Dark Mode Improvements**: Better contrast ratios
+- **Mobile Optimization**: Touch-friendly interactions
+- **Internationalization**: Multi-language support
+- **Advanced Search**: Filters and sorting options
+
+### Accessibility Goals
+- **WCAG 2.1 AA Compliance**: Full accessibility standards
+- **Voice Control**: Integration with browser voice commands
+- **High Contrast Themes**: Additional theme options
+
+### Performance Goals
+- **Bundle Size Reduction**: Further optimization of dependencies
+- **Startup Time**: Faster initial load times
+- **Memory Efficiency**: Better memory management for large datasets</content>
+<parameter name="memory_name">ui-ux-improvements-consolidated

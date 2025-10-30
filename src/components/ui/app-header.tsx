@@ -82,6 +82,7 @@ export function AppHeader({
         {/* Memory Panel Button */}
         {onToggleMemoryPanel && (
           <button
+            id="memory-panel-button"
             onClick={onToggleMemoryPanel}
             className="p-1.5 rounded-md transition-all duration-200 hover:bg-accent hover:text-accent-foreground focus:outline-none focus:ring-2 focus:ring-ring dark:focus:ring-offset-background"
             title="Toggle Memory Panel"
@@ -94,6 +95,7 @@ export function AppHeader({
         {/* Bookmarks Panel Button */}
         {onToggleBookmarksPanel && (
           <button
+            id="bookmarks-panel-button"
             onClick={onToggleBookmarksPanel}
             className="p-1.5 rounded-md transition-all duration-200 hover:bg-accent hover:text-accent-foreground focus:outline-none focus:ring-2 focus:ring-ring dark:focus:ring-offset-background"
             title="Toggle Bookmarks Panel"
@@ -115,6 +117,7 @@ export function AppHeader({
 
         {/* View Chats Dropdown Button */}
         <button
+          id="chat-sidebar-button"
           onClick={onToggleSidebar}
           className="p-1.5 rounded-md transition-all duration-200 hover:bg-accent hover:text-accent-foreground focus:outline-none focus:ring-2 focus:ring-ring dark:focus:ring-offset-background"
           title="View chats"

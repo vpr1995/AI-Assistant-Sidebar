@@ -11,6 +11,7 @@ import { ProviderStatusBanners } from '@/components/ui/provider-status-banners'
 import { ScreenCapturePreviewDialog } from '@/components/ui/screen-capture-preview-dialog'
 import { MemoryPanel } from '@/components/ui/memory-panel'
 import { BookmarksPanel } from '@/components/ui/bookmarks-panel'
+import { OnboardingModal } from '@/components/ui/onboarding-modal'
 import { Toaster } from '@/components/ui/sonner'
 import type { Message } from '@/components/ui/chat-message'
 import { useChats } from '@/hooks/use-chats'
@@ -21,9 +22,11 @@ import { useChatPersistence } from '@/hooks/use-chat-persistence'
 import { useChromeMessageListener } from '@/hooks/use-chrome-message-listener'
 import { useScreenCapture } from '@/hooks/use-screen-capture'
 import { useSelectedTools } from '@/hooks/use-selected-tools'
+import { useOnboarding } from '@/hooks/use-onboarding'
 import type { ToolSelection } from '@/lib/tools'
 import type { Attachment, UIMessage } from '@/types/chat'
 import { initializeDatabase } from '@/lib/migrations'
+import { getChat } from '@/lib/chat-storage'
 import './App.css'
 
 
@@ -157,6 +160,9 @@ function App() {
 
   // Screen capture state
   const screenCapture = useScreenCapture()
+
+  // Onboarding state
+  const onboarding = useOnboarding()
 
   // ====================
   // HOOKS & TRANSPORT
@@ -481,8 +487,67 @@ function App() {
 
   const isAIAvailable = activeProvider !== null
 
+  // Export a specific chat by ID
+  const handleExportChatById = async (chatId: string) => {
+    try {
+      const chat = await getChat(chatId)
+      if (!chat) {
+        toast.error('Chat not found')
+        return
+      }
+      exportChat(chat)
+    } catch (error) {
+      console.error('[App] Error exporting chat by ID:', error)
+      toast.error('Failed to export conversation')
+    }
+  }
+
+  // Helper function to export a chat
+  const exportChat = (chat: Chat) => {
+    try {
+      const base = (chat.title || `chat-${chat.id}`)
+        .replace(/[/\\?%*:|"<>]/g, '-')
+        .trim()
+        .replace(/\s+/g, ' ')
+
+      const filename = `${base || `chat-${chat.id}`}.json`
+
+      const payload = {
+        exportedAt: Date.now(),
+        chat: chat,
+      }
+
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+
+      toast.success(`Exported conversation: ${filename}`)
+    } catch (error) {
+      console.error('[App] Error exporting chat:', error)
+      toast.error('Failed to export conversation')
+    }
+  }
+
   return (
     <div className="sidebar-container flex flex-col h-screen">
+      {/* Onboarding Modal */}
+      <OnboardingModal
+        isOpen={onboarding.isOnboarding}
+        currentStep={onboarding.currentStep}
+        currentStepIndex={onboarding.currentStepIndex}
+        totalSteps={onboarding.totalSteps}
+        onNext={onboarding.nextStep}
+        onPrevious={onboarding.previousStep}
+        onComplete={onboarding.completeOnboarding}
+        onSkip={onboarding.skipOnboarding}
+      />
+
       {/* Header Component */}
       <AppHeader
         currentChat={currentChat}
@@ -571,6 +636,7 @@ function App() {
               setShowChatSidebar(false)
             }}
             onDeleteChat={(chatId) => deleteChatById(chatId)}
+            onExportChat={handleExportChatById}
           />
         </div>
       )}
