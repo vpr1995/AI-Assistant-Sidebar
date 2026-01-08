@@ -4,7 +4,7 @@ import {
   buildEnabledTools,
   getDefaultToolSelection,
   getSelectedToolIds,
-} from '../lib/tools/registry'
+} from './registry'
 
 describe('Tools Registry', () => {
   describe('ALL_TOOLS', () => {
@@ -15,7 +15,7 @@ describe('Tools Registry', () => {
     it('should have tools with required properties', () => {
       ALL_TOOLS.forEach(tool => {
         expect(tool).toHaveProperty('id')
-        expect(tool).toHaveProperty('name')
+        expect(tool).toHaveProperty('label')
         expect(tool).toHaveProperty('description')
         expect(tool).toHaveProperty('inputSchema')
         expect(tool).toHaveProperty('execute')
@@ -30,18 +30,18 @@ describe('Tools Registry', () => {
     })
 
     it('should include weather tool', () => {
-      const weatherTool = ALL_TOOLS.find(t => t.id === 'weather')
+      const weatherTool = ALL_TOOLS.find(t => t.id === 'getWeather')
       expect(weatherTool).toBeDefined()
-      expect(weatherTool?.name).toBe('Get Weather')
+      expect(weatherTool?.label).toBe('Weather')
     })
 
     it('should include web search tool', () => {
-      const searchTool = ALL_TOOLS.find(t => t.id === 'web-search')
+      const searchTool = ALL_TOOLS.find(t => t.id === 'webSearch')
       expect(searchTool).toBeDefined()
     })
 
     it('should include memory tool', () => {
-      const memoryTool = ALL_TOOLS.find(t => t.id === 'memory')
+      const memoryTool = ALL_TOOLS.find(t => t.id === 'searchMemories')
       expect(memoryTool).toBeDefined()
     })
   })
@@ -53,31 +53,31 @@ describe('Tools Registry', () => {
     })
 
     it('should return tools object with enabled tools', () => {
-      const result = buildEnabledTools(['weather'])
+      const result = buildEnabledTools(['getWeather'])
       expect(result).toBeDefined()
-      expect(result).toHaveProperty('weather')
+      expect(result).toHaveProperty('getWeather')
     })
 
     it('should only include enabled tools', () => {
-      const result = buildEnabledTools(['weather'])
+      const result = buildEnabledTools(['getWeather'])
       expect(result).toBeDefined()
       expect(Object.keys(result || {})).toHaveLength(1)
-      expect(result).toHaveProperty('weather')
+      expect(result).toHaveProperty('getWeather')
     })
 
     it('should handle multiple enabled tools', () => {
-      const result = buildEnabledTools(['weather', 'web-search'])
+      const result = buildEnabledTools(['getWeather', 'webSearch'])
       expect(result).toBeDefined()
       expect(Object.keys(result || {})).toHaveLength(2)
-      expect(result).toHaveProperty('weather')
-      expect(result).toHaveProperty('web-search')
+      expect(result).toHaveProperty('getWeather')
+      expect(result).toHaveProperty('webSearch')
     })
 
     it('should ignore non-existent tool IDs', () => {
-      const result = buildEnabledTools(['weather', 'non-existent-tool'])
+      const result = buildEnabledTools(['getWeather', 'non-existent-tool'])
       expect(result).toBeDefined()
       expect(Object.keys(result || {})).toHaveLength(1)
-      expect(result).toHaveProperty('weather')
+      expect(result).toHaveProperty('getWeather')
     })
   })
 
@@ -102,21 +102,21 @@ describe('Tools Registry', () => {
 
   describe('getSelectedToolIds', () => {
     it('should return empty array when no tools selected', () => {
-      const selection = { weather: false, 'web-search': false }
+      const selection = { getWeather: false, webSearch: false }
       const ids = getSelectedToolIds(selection)
       expect(ids).toEqual([])
     })
 
     it('should return IDs of selected tools', () => {
-      const selection = { weather: true, 'web-search': false, memory: true }
+      const selection = { getWeather: true, webSearch: false, searchMemories: true }
       const ids = getSelectedToolIds(selection)
-      expect(ids).toContain('weather')
-      expect(ids).toContain('memory')
-      expect(ids).not.toContain('web-search')
+      expect(ids).toContain('getWeather')
+      expect(ids).toContain('searchMemories')
+      expect(ids).not.toContain('webSearch')
     })
 
     it('should handle all tools selected', () => {
-      const selection = { weather: true, 'web-search': true, memory: true }
+      const selection = { getWeather: true, webSearch: true, searchMemories: true }
       const ids = getSelectedToolIds(selection)
       expect(ids).toHaveLength(3)
     })

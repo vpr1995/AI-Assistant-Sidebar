@@ -1,9 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import {
-  saveBookmark,
-  deleteBookmark,
+  bookmarkMessage,
+  removeBookmark,
   getBookmarks,
-  convertBookmarkToMemory,
 } from '../lib/bookmark-storage'
 import type { BookmarkedMessage } from '../types/memory'
 
@@ -12,9 +11,9 @@ describe('Bookmark Storage', () => {
     vi.clearAllMocks()
   })
 
-  describe('saveBookmark', () => {
+  describe('bookmarkMessage', () => {
     it('should save a bookmark', async () => {
-      const mockBookmark: Omit<BookmarkedMessage, 'id' | 'timestamp'> = {
+      const mockMessage: Omit<BookmarkedMessage, 'id' | 'timestamp'> = {
         content: 'Test bookmark content',
         role: 'assistant',
         sourceMessageId: 'msg-1',
@@ -23,19 +22,17 @@ describe('Bookmark Storage', () => {
         tags: ['important'],
       }
 
-      chrome.storage.local.get = vi.fn().mockImplementation((keys, callback) => {
-        callback?.({ bookmarks: [] })
+      chrome.storage.local.get = vi.fn().mockImplementation((keys) => {
         return Promise.resolve({ bookmarks: [] })
       })
 
-      chrome.storage.local.set = vi.fn().mockImplementation((data, callback) => {
-        callback?.()
+      chrome.storage.local.set = vi.fn().mockImplementation((data) => {
         return Promise.resolve()
       })
 
-      const bookmarkId = await saveBookmark(mockBookmark)
+      const bookmark = await bookmarkMessage(mockMessage)
 
-      expect(bookmarkId).toBeDefined()
+      expect(bookmark.id).toBeDefined()
       expect(chrome.storage.local.set).toHaveBeenCalled()
     })
 
@@ -51,17 +48,15 @@ describe('Bookmark Storage', () => {
         tags: [],
       }))
 
-      chrome.storage.local.get = vi.fn().mockImplementation((keys, callback) => {
-        callback?.({ bookmarks: existingBookmarks })
+      chrome.storage.local.get = vi.fn().mockImplementation((keys) => {
         return Promise.resolve({ bookmarks: existingBookmarks })
       })
 
-      chrome.storage.local.set = vi.fn().mockImplementation((data, callback) => {
-        callback?.()
+      chrome.storage.local.set = vi.fn().mockImplementation((data) => {
         return Promise.resolve()
       })
 
-      const newBookmark: Omit<BookmarkedMessage, 'id' | 'timestamp'> = {
+      const newMessage: Omit<BookmarkedMessage, 'id' | 'timestamp'> = {
         content: 'New bookmark',
         role: 'assistant',
         sourceMessageId: 'msg-new',
@@ -70,14 +65,14 @@ describe('Bookmark Storage', () => {
         tags: [],
       }
 
-      await saveBookmark(newBookmark)
+      await bookmarkMessage(newMessage)
 
       const savedData = (chrome.storage.local.set as any).mock.calls[0][0]
       expect(savedData.bookmarks).toHaveLength(500) // Should still be at limit
     })
   })
 
-  describe('deleteBookmark', () => {
+  describe('removeBookmark', () => {
     it('should delete a bookmark', async () => {
       const existingBookmarks = [
         {
@@ -102,17 +97,15 @@ describe('Bookmark Storage', () => {
         },
       ]
 
-      chrome.storage.local.get = vi.fn().mockImplementation((keys, callback) => {
-        callback?.({ bookmarks: existingBookmarks })
+      chrome.storage.local.get = vi.fn().mockImplementation((keys) => {
         return Promise.resolve({ bookmarks: existingBookmarks })
       })
 
-      chrome.storage.local.set = vi.fn().mockImplementation((data, callback) => {
-        callback?.()
+      chrome.storage.local.set = vi.fn().mockImplementation((data) => {
         return Promise.resolve()
       })
 
-      await deleteBookmark('bookmark-1')
+      await removeBookmark('bookmark-1')
 
       const savedData = (chrome.storage.local.set as any).mock.calls[0][0]
       expect(savedData.bookmarks).toHaveLength(1)
@@ -135,8 +128,7 @@ describe('Bookmark Storage', () => {
         },
       ]
 
-      chrome.storage.local.get = vi.fn().mockImplementation((keys, callback) => {
-        callback?.({ bookmarks: mockBookmarks })
+      chrome.storage.local.get = vi.fn().mockImplementation((keys) => {
         return Promise.resolve({ bookmarks: mockBookmarks })
       })
 
@@ -146,8 +138,7 @@ describe('Bookmark Storage', () => {
     })
 
     it('should return empty array when no bookmarks exist', async () => {
-      chrome.storage.local.get = vi.fn().mockImplementation((keys, callback) => {
-        callback?.({})
+      chrome.storage.local.get = vi.fn().mockImplementation((keys) => {
         return Promise.resolve({})
       })
 
@@ -180,8 +171,7 @@ describe('Bookmark Storage', () => {
         },
       ]
 
-      chrome.storage.local.get = vi.fn().mockImplementation((keys, callback) => {
-        callback?.({ bookmarks: mockBookmarks })
+      chrome.storage.local.get = vi.fn().mockImplementation((keys) => {
         return Promise.resolve({ bookmarks: mockBookmarks })
       })
 

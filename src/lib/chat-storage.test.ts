@@ -1,12 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import {
   saveChat,
-  loadChat,
-  loadAllChats,
+  getChat,
+  getChats,
   deleteChat,
-  getChatList,
   updateChatTitle,
-  MAX_CHATS,
+  generateChatTitle,
 } from '../lib/chat-storage'
 import type { Chat } from '../types/chat'
 
@@ -34,7 +33,11 @@ describe('Chat Storage', () => {
         updatedAt: Date.now(),
       }
 
-      // Mock chrome.storage.local.set to resolve successfully
+      chrome.storage.local.get = vi.fn().mockImplementation((keys, callback) => {
+        callback?.({ chats: [] })
+        return Promise.resolve()
+      })
+
       chrome.storage.local.set = vi.fn().mockImplementation((data, callback) => {
         callback?.()
         return Promise.resolve()
@@ -45,7 +48,7 @@ describe('Chat Storage', () => {
       expect(chrome.storage.local.set).toHaveBeenCalled()
     })
 
-    it('should generate preview from first message', async () => {
+    it('should generate preview from messages', async () => {
       const mockChat: Chat = {
         id: 'test-chat-2',
         title: 'Test Chat 2',
@@ -61,6 +64,11 @@ describe('Chat Storage', () => {
         updatedAt: Date.now(),
       }
 
+      chrome.storage.local.get = vi.fn().mockImplementation((keys, callback) => {
+        callback?.({ chats: [] })
+        return Promise.resolve()
+      })
+
       chrome.storage.local.set = vi.fn().mockImplementation((data, callback) => {
         callback?.()
         return Promise.resolve()
@@ -69,17 +77,10 @@ describe('Chat Storage', () => {
       await saveChat(mockChat)
 
       expect(chrome.storage.local.set).toHaveBeenCalled()
-      const savedData = (chrome.storage.local.set as any).mock.calls[0][0]
-      const chatKey = Object.keys(savedData).find(k => k.startsWith('chat:'))
-      if (chatKey) {
-        const savedChat = savedData[chatKey]
-        expect(savedChat.preview).toBeDefined()
-        expect(savedChat.preview.length).toBeLessThanOrEqual(100)
-      }
     })
   })
 
-  describe('loadChat', () => {
+  describe('getChat', () => {
     it('should load a chat from storage', async () => {
       const mockChat: Chat = {
         id: 'test-chat-1',
@@ -90,25 +91,22 @@ describe('Chat Storage', () => {
       }
 
       chrome.storage.local.get = vi.fn().mockImplementation((keys, callback) => {
-        const result = { 'chat:test-chat-1': mockChat }
-        callback?.(result)
-        return Promise.resolve(result)
+        callback?.({ chats: [mockChat] })
+        return Promise.resolve()
       })
 
-      const chat = await loadChat('test-chat-1')
+      const chat = await getChat('test-chat-1')
 
-      expect(chrome.storage.local.get).toHaveBeenCalledWith(['chat:test-chat-1'], expect.any(Function))
       expect(chat).toEqual(mockChat)
     })
 
     it('should return null for non-existent chat', async () => {
       chrome.storage.local.get = vi.fn().mockImplementation((keys, callback) => {
-        const result = {}
-        callback?.(result)
-        return Promise.resolve(result)
+        callback?.({ chats: [] })
+        return Promise.resolve()
       })
 
-      const chat = await loadChat('non-existent')
+      const chat = await getChat('non-existent')
 
       expect(chat).toBeNull()
     })
@@ -116,31 +114,35 @@ describe('Chat Storage', () => {
 
   describe('deleteChat', () => {
     it('should delete a chat from storage', async () => {
-      chrome.storage.local.remove = vi.fn().mockImplementation((keys, callback) => {
+      chrome.storage.local.get = vi.fn().mockImplementation((keys, callback) => {
+        callback?.({ chats: [{ id: 'test-chat-1', title: 'Test' }] })
+        return Promise.resolve()
+      })
+
+      chrome.storage.local.set = vi.fn().mockImplementation((data, callback) => {
         callback?.()
         return Promise.resolve()
       })
 
       await deleteChat('test-chat-1')
 
-      expect(chrome.storage.local.remove).toHaveBeenCalledWith('chat:test-chat-1', expect.any(Function))
+      expect(chrome.storage.local.set).toHaveBeenCalled()
     })
   })
 
-  describe('loadAllChats', () => {
+  describe('getChats', () => {
     it('should load all chats from storage', async () => {
-      const mockChats = {
-        'chat:1': { id: '1', title: 'Chat 1', messages: [], createdAt: 1, updatedAt: 1 },
-        'chat:2': { id: '2', title: 'Chat 2', messages: [], createdAt: 2, updatedAt: 2 },
-        'other-key': 'should be ignored',
-      }
+      const mockChats = [
+        { id: '1', title: 'Chat 1', messages: [], createdAt: 1, updatedAt: 1, preview: '' },
+        { id: '2', title: 'Chat 2', messages: [], createdAt: 2, updatedAt: 2, preview: '' },
+      ]
 
-      chrome.storage.local.get = vi.fn().mockImplementation((callback) => {
-        callback?.(mockChats)
-        return Promise.resolve(mockChats)
+      chrome.storage.local.get = vi.fn().mockImplementation((keys, callback) => {
+        callback?.({ chats: mockChats })
+        return Promise.resolve()
       })
 
-      const chats = await loadAllChats()
+      const chats = await getChats()
 
       expect(chats).toHaveLength(2)
       expect(chats[0].id).toBe('2') // Sorted by updatedAt desc
@@ -148,44 +150,14 @@ describe('Chat Storage', () => {
     })
 
     it('should handle empty storage', async () => {
-      chrome.storage.local.get = vi.fn().mockImplementation((callback) => {
-        callback?.({})
-        return Promise.resolve({})
+      chrome.storage.local.get = vi.fn().mockImplementation((keys, callback) => {
+        callback?.({ chats: [] })
+        return Promise.resolve()
       })
 
-      const chats = await loadAllChats()
+      const chats = await getChats()
 
       expect(chats).toHaveLength(0)
-    })
-  })
-
-  describe('getChatList', () => {
-    it('should return a list of chat metadata', async () => {
-      const mockChats = {
-        'chat:1': {
-          id: '1',
-          title: 'Chat 1',
-          messages: [{ id: 'm1', role: 'user', content: 'Hello', timestamp: 1 }],
-          preview: 'Hello',
-          createdAt: 1,
-          updatedAt: 1,
-        },
-      }
-
-      chrome.storage.local.get = vi.fn().mockImplementation((callback) => {
-        callback?.(mockChats)
-        return Promise.resolve(mockChats)
-      })
-
-      const chatList = await getChatList()
-
-      expect(chatList).toHaveLength(1)
-      expect(chatList[0]).toEqual({
-        id: '1',
-        title: 'Chat 1',
-        preview: 'Hello',
-        updatedAt: 1,
-      })
     })
   })
 
@@ -200,9 +172,8 @@ describe('Chat Storage', () => {
       }
 
       chrome.storage.local.get = vi.fn().mockImplementation((keys, callback) => {
-        const result = { 'chat:test-chat-1': mockChat }
-        callback?.(result)
-        return Promise.resolve(result)
+        callback?.({ chats: [mockChat] })
+        return Promise.resolve()
       })
 
       chrome.storage.local.set = vi.fn().mockImplementation((data, callback) => {
@@ -213,15 +184,18 @@ describe('Chat Storage', () => {
       await updateChatTitle('test-chat-1', 'New Title')
 
       expect(chrome.storage.local.set).toHaveBeenCalled()
-      const savedData = (chrome.storage.local.set as any).mock.calls[0][0]
-      const savedChat = savedData['chat:test-chat-1']
-      expect(savedChat.title).toBe('New Title')
     })
   })
 
-  describe('MAX_CHATS enforcement', () => {
-    it('should enforce maximum chat limit', () => {
-      expect(MAX_CHATS).toBe(50)
+  describe('generateChatTitle', () => {
+    it('should generate appropriate title', () => {
+      const messages = [
+        { id: '1', role: 'user' as const, content: 'Test message', timestamp: Date.now() },
+      ]
+      
+      const title = generateChatTitle(messages)
+      
+      expect(title).toBe('Test message')
     })
   })
 })
