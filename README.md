@@ -111,6 +111,30 @@ Then build and reload in `chrome://extensions/` to test extension-specific APIs.
 
 ## 💻 Usage
 
+### Testing
+
+Run the test suite to verify functionality:
+
+```bash
+# Run tests once
+npm run test:run
+
+# Run tests in watch mode (interactive)
+npm test
+
+# Run tests with UI
+npm run test:ui
+
+# Run tests with coverage report
+npm run test:coverage
+```
+
+The project includes 96 tests covering:
+- Storage layer (chat, bookmarks, settings, tools)
+- Utility functions (YouTube, text rewriting, images, etc.)
+- Tool system (registry, selection, storage)
+- Helper functions
+
 ### Chat with AI
 
 1. Click the extension icon to open the sidebar
