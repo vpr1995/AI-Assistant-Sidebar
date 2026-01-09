@@ -37,10 +37,12 @@
 - **💿 Persistent Storage**: All chats saved to device
 
 **AI System**
-- **🤖 Triple-Provider AI System**: Automatic fallback across three providers:
+  - **🤖 Triple-Provider AI System**: Automatic fallback across three providers:
   - **Built-in AI** (Gemini Nano) — Chrome's native, fastest, supports images
   - **WebLLM** (Llama 3.2) — browser-based via WebGPU
   - **Transformers.js** (Llama 3.2) — broadest compatibility fallback
+ 
+[Watch the video on YouTube](https://youtu.be/UdZ3nPYAMXQ)
 
 ## 📦 What's Inside
 
